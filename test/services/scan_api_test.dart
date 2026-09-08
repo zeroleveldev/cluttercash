@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:cluttercash/domain/item.dart';
 import 'package:cluttercash/services/scan_api.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -91,4 +92,57 @@ void main() {
     expect(captured.body, contains('true'));
     expect(captured.body.toLowerCase(), contains('content-type: image/jpeg'));
   });
+
+  test(
+    'label upload refines the item and never requires a returned serial',
+    () async {
+      late http.Request captured;
+      final client = MockClient((request) async {
+        captured = request;
+        return http.Response(
+          jsonEncode({
+            'exactName': 'Canon AE-1 35mm film camera',
+            'manufacturer': 'Canon',
+            'model': 'AE-1',
+            'confidence': 'high',
+            'serialDetected': true,
+            'searchQuery': 'Canon AE-1 35mm film camera body',
+            'listingTitle': 'Canon AE-1 35mm Film Camera Body',
+            'listingDescription':
+                'Canon AE-1 camera body. Confirm operation and included accessories.',
+            'marketplace': 'ebay',
+            'marketplaceReason': 'Collectors search by exact model.',
+            'missingDetails': ['Working condition', 'Included accessories'],
+          }),
+          200,
+        );
+      });
+      const item = ClutterItem(
+        id: 'camera',
+        name: 'Vintage film camera',
+        lowValue: 80,
+        typicalValue: 110,
+        highValue: 150,
+        confidence: Confidence.medium,
+        effort: SaleEffort.medium,
+        route: ItemRoute.sell,
+        category: 'Cameras',
+      );
+
+      final result = await ScanApi(
+        baseUrl: 'https://api.example',
+        client: client,
+      ).identifyFromLabel(Uint8List.fromList([1, 2, 3]), item);
+
+      expect(captured.url.path, '/v1/items/identify');
+      expect(captured.body, contains('Vintage film camera'));
+      expect(captured.body, contains('Cameras'));
+      expect(captured.body.toLowerCase(), contains('content-type: image/jpeg'));
+      expect(result.item.name, 'Canon AE-1 35mm film camera');
+      expect(result.item.searchQuery, 'Canon AE-1 35mm film camera body');
+      expect(result.manufacturer, 'Canon');
+      expect(result.model, 'AE-1');
+      expect(result.serialDetected, true);
+    },
+  );
 }

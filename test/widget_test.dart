@@ -59,6 +59,12 @@ void main() {
       expect(find.text('Active listings'), findsOneWidget);
       expect(find.text('Editable listing draft'), findsOneWidget);
       expect(find.textContaining('asking prices'), findsOneWidget);
+      expect(find.text('Improve with a model-label photo'), findsOneWidget);
+
+      await tester.tap(find.text('Improve with a model-label photo'));
+      await tester.pumpAndSettle();
+      expect(find.text('Photograph the model label'), findsOneWidget);
+      expect(find.textContaining('unique serial number'), findsOneWidget);
     },
   );
 }

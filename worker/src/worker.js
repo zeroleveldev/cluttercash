@@ -45,6 +45,26 @@ const responseSchema = {
   },
 };
 
+const identityPrompt = `Read this close-up product label for an already identified household item. Use only visible manufacturer and model information to refine the identity. Model numbers and part numbers are useful. A serial number is a unique identifier: never return the serial number or copy it into the name, search query, listing, reason, or missing details. Return only serialDetected=true when one is visible. Do not claim to have searched the web or verified authenticity, ownership, warranty, recall status, or market prices. Create an exactName, focused marketplace searchQuery, editable listing title and description, marketplace recommendation, and remaining details to confirm. Unknown values must be empty strings or explicit checklist items, never guesses. Return only the requested JSON schema.`;
+
+const identitySchema = {
+  type: 'object',
+  required: ['exactName', 'manufacturer', 'model', 'confidence', 'serialDetected', 'searchQuery', 'listingTitle', 'listingDescription', 'marketplace', 'marketplaceReason', 'missingDetails'],
+  properties: {
+    exactName: { type: 'string' },
+    manufacturer: { type: 'string' },
+    model: { type: 'string' },
+    confidence: { type: 'string', enum: ['low', 'medium', 'high'] },
+    serialDetected: { type: 'boolean' },
+    searchQuery: { type: 'string' },
+    listingTitle: { type: 'string' },
+    listingDescription: { type: 'string' },
+    marketplace: { type: 'string', enum: ['ebay', 'facebookMarketplace', 'mercari', 'localPickup', 'consignment', 'donate'] },
+    marketplaceReason: { type: 'string' },
+    missingDetails: { type: 'array', items: { type: 'string' } },
+  },
+};
+
 export function createHandler({ fetcher = fetch, now = () => Date.now() } = {}) {
   const usage = new Map();
 
@@ -58,7 +78,9 @@ export function createHandler({ fetcher = fetch, now = () => Date.now() } = {}) 
     if (url.pathname === '/health' && request.method === 'GET') {
       return json({ ok: true, analysisReady: Boolean(env.GEMINI_API_KEY), provider: 'gemini' }, 200, cors);
     }
-    if (url.pathname !== '/v1/scans' || request.method !== 'POST') {
+    const isScan = url.pathname === '/v1/scans' && request.method === 'POST';
+    const isIdentity = url.pathname === '/v1/items/identify' && request.method === 'POST';
+    if (!isScan && !isIdentity) {
       return json({ error: 'Not found.' }, 404, cors);
     }
     if (!env.GEMINI_API_KEY) return json({ error: 'Live analysis is not configured.' }, 503, cors);
@@ -85,6 +107,18 @@ export function createHandler({ fetcher = fetch, now = () => Date.now() } = {}) 
       return json({ error: 'Image must be between 1 byte and 8 MB.' }, 413, cors);
     }
 
+    let taskPrompt = prompt;
+    let taskSchema = responseSchema;
+    let validate = validateScan;
+    if (isIdentity) {
+      const itemName = textField(form.get('itemName'), 100);
+      const category = textField(form.get('category'), 40) || 'Other';
+      if (!itemName) return json({ error: 'The existing item name is required.' }, 400, cors);
+      taskPrompt = `${identityPrompt}\nExisting broad identification (context only): ${JSON.stringify({ itemName, category })}`;
+      taskSchema = identitySchema;
+      validate = validateIdentity;
+    }
+
     try {
       const bytes = new Uint8Array(await image.arrayBuffer());
       const model = env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
@@ -95,13 +129,13 @@ export function createHandler({ fetcher = fetch, now = () => Date.now() } = {}) 
           headers: { 'Content-Type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
           body: JSON.stringify({
             contents: [{ role: 'user', parts: [
-              { text: prompt },
+              { text: taskPrompt },
               { inlineData: { mimeType: image.type, data: toBase64(bytes) } },
             ] }],
             generationConfig: {
               temperature: 0.1,
               responseMimeType: 'application/json',
-              responseJsonSchema: responseSchema,
+              responseJsonSchema: taskSchema,
             },
           }),
         },
@@ -110,10 +144,12 @@ export function createHandler({ fetcher = fetch, now = () => Date.now() } = {}) 
       const providerBody = await providerResponse.json();
       const text = providerBody?.candidates?.[0]?.content?.parts?.[0]?.text;
       if (!text) throw new Error('Gemini returned no structured content');
-      return json(validateScan(JSON.parse(text)), 200, cors);
+      return json(validate(JSON.parse(text)), 200, cors);
     } catch (error) {
-      console.error('scan_failed', error instanceof Error ? error.message : 'unknown');
-      return json({ error: 'The scan could not be completed. Please try again.' }, 502, cors);
+      console.error(isIdentity ? 'identity_failed' : 'scan_failed', error instanceof Error ? error.message : 'unknown');
+      return json({ error: isIdentity
+        ? 'The label could not be analyzed. Please try another close photo.'
+        : 'The scan could not be completed. Please try again.' }, 502, cors);
     }
   };
 }
@@ -191,6 +227,31 @@ function validateScan(value) {
     };
   });
   return { sceneSummary: value.sceneSummary.slice(0, 160), items };
+}
+
+function validateIdentity(value) {
+  if (!value || typeof value.exactName !== 'string') throw new Error('Invalid Gemini identity');
+  const levels = new Set(['low', 'medium', 'high']);
+  const marketplaces = new Set(['ebay', 'facebookMarketplace', 'mercari', 'localPickup', 'consignment', 'donate']);
+  return {
+    exactName: value.exactName.slice(0, 100),
+    manufacturer: String(value.manufacturer || '').slice(0, 60),
+    model: String(value.model || '').slice(0, 80),
+    confidence: levels.has(value.confidence) ? value.confidence : 'low',
+    serialDetected: value.serialDetected === true,
+    searchQuery: String(value.searchQuery || value.exactName).slice(0, 120),
+    listingTitle: String(value.listingTitle || `${value.exactName} — details to confirm`).slice(0, 80),
+    listingDescription: String(value.listingDescription || `${value.exactName}. Confirm condition, damage, and included accessories before posting.`).slice(0, 700),
+    marketplace: marketplaces.has(value.marketplace) ? value.marketplace : 'localPickup',
+    marketplaceReason: String(value.marketplaceReason || '').slice(0, 240),
+    missingDetails: Array.isArray(value.missingDetails)
+      ? value.missingDetails.map((detail) => String(detail).slice(0, 80)).filter(Boolean).slice(0, 6)
+      : [],
+  };
+}
+
+function textField(value, maxLength) {
+  return typeof value === 'string' ? value.trim().slice(0, maxLength) : '';
 }
 
 function finite(value) {

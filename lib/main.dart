@@ -29,6 +29,7 @@ const _cream = Color(0xFFF7F4EA);
 const _paper = Color(0xFFFFFDF7);
 const _muted = Color(0xFF637067);
 const _orange = Color(0xFFFFA655);
+const _apiUrl = String.fromEnvironment('CLUTTERCASH_API_URL');
 
 class ClutterCashApp extends StatelessWidget {
   const ClutterCashApp({super.key});
@@ -570,8 +571,6 @@ class AnalyzingScreen extends StatefulWidget {
 }
 
 class _AnalyzingScreenState extends State<AnalyzingScreen> {
-  static const _apiUrl = String.fromEnvironment('CLUTTERCASH_API_URL');
-
   @override
   void initState() {
     super.initState();
@@ -885,7 +884,7 @@ class ResultsScreen extends StatefulWidget {
 }
 
 class _ResultsScreenState extends State<ResultsScreen> {
-  late final ScanResult scan = widget.result ?? _demoResult();
+  late ScanResult scan = widget.result ?? _demoResult();
   late final Set<String> queued = scan.items
       .where((item) => item.route == ItemRoute.sell)
       .take(3)
@@ -1038,7 +1037,22 @@ class _ResultsScreenState extends State<ResultsScreen> {
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         ),
-        builder: (_) => _ItemDetailsSheet(item: item),
+        builder: (_) => _ItemDetailsSheet(
+          item: item,
+          onUpdated: (updated) => setState(() {
+            scan = ScanResult(
+              id: scan.id,
+              projectId: scan.projectId,
+              createdAt: scan.createdAt,
+              items: scan.items
+                  .map(
+                    (existing) =>
+                        existing.id == updated.id ? updated : existing,
+                  )
+                  .toList(),
+            );
+          }),
+        ),
       );
 
   Future<void> _showProjectCreated(BuildContext context) async {
@@ -1185,21 +1199,31 @@ class _ResultsScreenState extends State<ResultsScreen> {
 }
 
 class _ItemDetailsSheet extends StatefulWidget {
-  const _ItemDetailsSheet({required this.item});
+  const _ItemDetailsSheet({required this.item, required this.onUpdated});
 
   final ClutterItem item;
+  final ValueChanged<ClutterItem> onUpdated;
 
   @override
   State<_ItemDetailsSheet> createState() => _ItemDetailsSheetState();
 }
 
 class _ItemDetailsSheetState extends State<_ItemDetailsSheet> {
-  late final ListingGuide guide = ListingGuide.forItem(widget.item);
-  late final TextEditingController titleController = TextEditingController(
-    text: guide.title,
-  );
-  late final TextEditingController descriptionController =
-      TextEditingController(text: guide.description);
+  late ClutterItem item;
+  late TextEditingController titleController;
+  late TextEditingController descriptionController;
+  bool identifying = false;
+  String? identityStatus;
+
+  ListingGuide get guide => ListingGuide.forItem(item);
+
+  @override
+  void initState() {
+    super.initState();
+    item = widget.item;
+    titleController = TextEditingController(text: guide.title);
+    descriptionController = TextEditingController(text: guide.description);
+  }
 
   @override
   void dispose() {
@@ -1219,12 +1243,77 @@ class _ItemDetailsSheetState extends State<_ItemDetailsSheet> {
 
   void _copyDraft() {
     final text =
-        '${titleController.text.trim()}\n\n'
-        '${descriptionController.text.trim()}';
+        '${titleController.text.trim()}\n\n${descriptionController.text.trim()}';
     Clipboard.setData(ClipboardData(text: text));
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Editable listing draft copied')),
     );
+  }
+
+  Future<void> _identifyFromLabel() async {
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Photograph the model label'),
+        content: const SingleChildScrollView(
+          child: Text(
+            'Look for the maker, model, model number, or part number. Those details help find the exact product.\n\nA unique serial number usually does not help with pricing. If it appears on the same label, ClutterCash asks the AI not to return or save it—only to report that one was detected.\n\nThe photo is sent to Google Gemini under the free beta and may be reviewed or used to improve products. Avoid faces, addresses, documents, account details, or anything else private.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            icon: const Icon(Icons.camera_alt_rounded),
+            label: const Text('Open camera'),
+          ),
+        ],
+      ),
+    );
+    if (proceed != true || !mounted) return;
+
+    final photo = await ImagePicker().pickImage(
+      source: ImageSource.camera,
+      maxWidth: 2000,
+      imageQuality: 90,
+    );
+    if (photo == null || !mounted) return;
+
+    setState(() {
+      identifying = true;
+      identityStatus = null;
+    });
+    try {
+      final result = await ScanApi(
+        baseUrl: _apiUrl,
+      ).identifyFromLabel(await photo.readAsBytes(), item);
+      if (!mounted) return;
+      setState(() {
+        item = result.item;
+        titleController.text = item.listingTitle;
+        descriptionController.text = item.listingDescription;
+        identifying = false;
+        final identity = [
+          result.manufacturer,
+          result.model,
+        ].where((part) => part.trim().isNotEmpty).join(' ');
+        identityStatus = identity.isEmpty
+            ? 'No exact model was readable. Try a sharper, closer label photo.'
+            : 'Identity improved: $identity.${result.serialDetected ? ' A serial was detected but not returned or saved.' : ''}';
+      });
+      widget.onUpdated(item);
+    } on Object catch (error) {
+      if (!mounted) return;
+      setState(() {
+        identifying = false;
+        identityStatus = error is ScanApiException
+            ? error.message
+            : 'The label could not be analyzed. Try a sharper close photo.';
+      });
+    }
   }
 
   @override
@@ -1252,20 +1341,17 @@ class _ItemDetailsSheetState extends State<_ItemDetailsSheet> {
           const SizedBox(height: 20),
           Row(
             children: [
-              if (widget.item.typicalValue >= 100)
+              if (item.typicalValue >= 100)
                 const _Pill(text: 'BIG TICKET', color: _orange),
               const Spacer(),
-              _ConfidenceChip(widget.item.confidence),
+              _ConfidenceChip(item.confidence),
             ],
           ),
           const SizedBox(height: 12),
-          Text(
-            widget.item.name,
-            style: Theme.of(context).textTheme.headlineLarge,
-          ),
+          Text(item.name, style: Theme.of(context).textTheme.headlineLarge),
           const SizedBox(height: 7),
           Text(
-            '\$${widget.item.lowValue.toInt()}–\$${widget.item.highValue.toInt()} AI estimate',
+            '\$${item.lowValue.toInt()}–\$${item.highValue.toInt()} AI estimate',
             style: const TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.w900,
@@ -1283,6 +1369,37 @@ class _ItemDetailsSheetState extends State<_ItemDetailsSheet> {
             title: 'Best place to try: ${guide.recommendedMarketplace.label}',
             body: guide.marketplaceReason,
           ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: identifying ? null : _identifyFromLabel,
+            icon: const Icon(Icons.document_scanner_outlined),
+            label: Text(
+              identifying
+                  ? 'Reading the model label…'
+                  : 'Improve with a model-label photo',
+            ),
+          ),
+          if (identifying) ...[
+            const SizedBox(height: 8),
+            const LinearProgressIndicator(),
+          ],
+          if (identityStatus != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEAF3EB),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Text(
+                identityStatus!,
+                style: const TextStyle(
+                  color: _forest,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 22),
           Text(
             'Price research',

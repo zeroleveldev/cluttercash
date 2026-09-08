@@ -53,6 +53,91 @@ class ScanApi {
     }
   }
 
+  Future<ItemIdentification> identifyFromLabel(
+    Uint8List bytes,
+    ClutterItem item,
+  ) async {
+    if (!isConfigured) {
+      throw const ScanApiException('Live analysis is not configured.');
+    }
+    final client = _client ?? http.Client();
+    try {
+      final request =
+          http.MultipartRequest(
+              'POST',
+              Uri.parse(
+                '${baseUrl.replaceAll(RegExp(r'/$'), '')}/v1/items/identify',
+              ),
+            )
+            ..fields['betaConsent'] = 'true'
+            ..fields['itemName'] = item.name
+            ..fields['category'] = item.category
+            ..files.add(
+              http.MultipartFile.fromBytes(
+                'image',
+                bytes,
+                filename: 'model-label.jpg',
+                contentType: MediaType('image', 'jpeg'),
+              ),
+            );
+      final streamed = await client
+          .send(request)
+          .timeout(const Duration(seconds: 55));
+      final body = await streamed.stream.bytesToString();
+      if (streamed.statusCode != 200) {
+        final message =
+            _errorMessage(body) ??
+            'Label analysis failed (${streamed.statusCode}).';
+        throw ScanApiException(message);
+      }
+      return parseIdentificationResponse(body, item);
+    } finally {
+      if (_client == null) client.close();
+    }
+  }
+
+  static ItemIdentification parseIdentificationResponse(
+    String body,
+    ClutterItem item,
+  ) {
+    final dynamic decoded;
+    try {
+      decoded = jsonDecode(body);
+    } catch (_) {
+      throw const FormatException('Label response was not valid JSON.');
+    }
+    if (decoded is! Map<String, dynamic> || decoded['exactName'] is! String) {
+      throw const FormatException(
+        'Label response did not match the expected contract.',
+      );
+    }
+    final exactName = (decoded['exactName'] as String).trim();
+    final missingDetails = decoded['missingDetails'] is List
+        ? (decoded['missingDetails'] as List)
+              .map((detail) => detail.toString())
+              .where((detail) => detail.trim().isNotEmpty)
+              .take(6)
+              .toList()
+        : item.missingDetails;
+    return ItemIdentification(
+      item: item.copyWith(
+        name: exactName.isEmpty ? item.name : exactName,
+        confidence: _confidence(decoded['confidence']),
+        listingTitle: '${decoded['listingTitle'] ?? item.listingTitle}',
+        listingDescription:
+            '${decoded['listingDescription'] ?? item.listingDescription}',
+        searchQuery: '${decoded['searchQuery'] ?? item.searchQuery}',
+        marketplace: _marketplace(decoded['marketplace']),
+        marketplaceReason:
+            '${decoded['marketplaceReason'] ?? item.marketplaceReason}',
+        missingDetails: missingDetails,
+      ),
+      manufacturer: '${decoded['manufacturer'] ?? ''}',
+      model: '${decoded['model'] ?? ''}',
+      serialDetected: decoded['serialDetected'] == true,
+    );
+  }
+
   static ScanResult parseResponse(String body, {required String projectId}) {
     final dynamic decoded;
     try {
@@ -143,4 +228,18 @@ class ScanApiException implements Exception {
   final String message;
   @override
   String toString() => message;
+}
+
+class ItemIdentification {
+  const ItemIdentification({
+    required this.item,
+    required this.manufacturer,
+    required this.model,
+    required this.serialDetected,
+  });
+
+  final ClutterItem item;
+  final String manufacturer;
+  final String model;
+  final bool serialDetected;
 }

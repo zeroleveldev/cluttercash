@@ -17,6 +17,17 @@ function imageRequest({ consent = true, origin = env.ALLOWED_ORIGIN } = {}) {
   });
 }
 
+function labelRequest({ consent = true, origin = env.ALLOWED_ORIGIN } = {}) {
+  const form = new FormData();
+  form.append('image', new File(['fake-label'], 'label.jpg', { type: 'image/jpeg' }));
+  form.append('itemName', 'Vintage film camera');
+  form.append('category', 'Cameras');
+  if (consent) form.append('betaConsent', 'true');
+  return new Request('https://api.example/v1/items/identify', {
+    method: 'POST', body: form, headers: { Origin: origin, 'CF-Connecting-IP': '203.0.113.11' },
+  });
+}
+
 test('health is public and never exposes the Gemini secret', async () => {
   const response = await createHandler({ fetcher: async () => { throw new Error('unused'); } })(
     new Request('https://api.example/health'), env,
@@ -68,6 +79,33 @@ test('sends the image to Gemini and returns a validated scan contract', async ()
   assert.equal(providerRequest.contents[0].parts[1].inlineData.mimeType, 'image/jpeg');
   assert.equal(providerRequest.generationConfig.responseMimeType, 'application/json');
   assert.equal('maxItems' in providerRequest.generationConfig.responseJsonSchema.properties.items, false);
+});
+
+test('uses a label photo to refine an item without returning its serial number', async () => {
+  let providerRequest;
+  const fetcher = async (_url, options) => {
+    providerRequest = JSON.parse(options.body);
+    return Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify({
+      exactName: 'Canon AE-1 35mm film camera', manufacturer: 'Canon', model: 'AE-1',
+      confidence: 'high', serialDetected: true, serialNumber: 'REDACT-ME-123',
+      searchQuery: 'Canon AE-1 35mm film camera body',
+      listingTitle: 'Canon AE-1 35mm Film Camera Body — Condition to Confirm',
+      listingDescription: 'Canon AE-1 35mm film camera body. Confirm operation, cosmetic wear, lens, battery, and accessories before posting.',
+      marketplace: 'ebay', marketplaceReason: 'Collectors search by exact model on eBay.',
+      missingDetails: ['Working condition', 'Included lens and accessories'],
+    }) }] } }] });
+  };
+
+  const response = await createHandler({ fetcher })(labelRequest(), env);
+  assert.equal(response.status, 200);
+  const result = await response.json();
+  assert.equal(result.exactName, 'Canon AE-1 35mm film camera');
+  assert.equal(result.model, 'AE-1');
+  assert.equal(result.serialDetected, true);
+  assert.equal('serialNumber' in result, false);
+  assert.equal(JSON.stringify(result).includes('REDACT-ME-123'), false);
+  assert.match(providerRequest.contents[0].parts[0].text, /never return.*serial/i);
+  assert.equal(providerRequest.contents[0].parts[1].inlineData.mimeType, 'image/jpeg');
 });
 
 test('does not echo provider errors or secrets to clients', async () => {
