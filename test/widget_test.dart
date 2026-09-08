@@ -60,8 +60,40 @@ void main() {
       expect(find.text('Editable listing draft'), findsOneWidget);
       expect(find.textContaining('asking prices'), findsOneWidget);
       expect(find.text('Improve with a model-label photo'), findsOneWidget);
+      final questions = find.text('Answer listing questions');
+      expect(questions, findsOneWidget);
+      await tester.ensureVisible(questions);
+      await tester.tap(questions);
+      await tester.pumpAndSettle();
+      expect(find.text('Confirm the listing details'), findsOneWidget);
+      expect(find.text('Working condition'), findsOneWidget);
+      expect(find.text('Cosmetic wear or damage'), findsOneWidget);
+      expect(find.text('Measurements'), findsOneWidget);
+      expect(find.text('Included items and accessories'), findsOneWidget);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Working condition'),
+        'Shutter fires and meter responds',
+      );
+      tester.testTextInput.hide();
+      await tester.pumpAndSettle();
+      final updateDraft = find.text('Update listing draft');
+      await tester.ensureVisible(updateDraft);
+      await tester.pumpAndSettle();
+      await tester.tap(updateDraft);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Listing refreshed with 1'), findsOneWidget);
+      final description = tester.widget<TextField>(
+        find.widgetWithText(TextField, 'Description'),
+      );
+      expect(
+        description.controller?.text,
+        contains('Shutter fires and meter responds'),
+      );
 
-      await tester.tap(find.text('Improve with a model-label photo'));
+      final labelPhoto = find.text('Improve with a model-label photo');
+      await tester.ensureVisible(labelPhoto);
+      await tester.pumpAndSettle();
+      await tester.tap(labelPhoto);
       await tester.pumpAndSettle();
       expect(find.text('Photograph the model label'), findsOneWidget);
       expect(find.textContaining('unique serial number'), findsOneWidget);

@@ -76,6 +76,7 @@ class ProjectStore {
     'marketplace': item.marketplace.name,
     'marketplaceReason': item.marketplaceReason,
     'missingDetails': item.missingDetails,
+    'confirmedDetails': item.confirmedDetails,
     'boxLeft': item.boxLeft,
     'boxTop': item.boxTop,
     'boxWidth': item.boxWidth,
@@ -110,6 +111,11 @@ class ProjectStore {
               .map((detail) => detail.toString())
               .toList()
         : const [],
+    confirmedDetails: value['confirmedDetails'] is Map
+        ? (value['confirmedDetails'] as Map).map(
+            (key, detail) => MapEntry(key.toString(), detail.toString()),
+          )
+        : const {},
     boxLeft: _number(value['boxLeft']),
     boxTop: _number(value['boxTop']),
     boxWidth: _number(value['boxWidth']),

@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 
 import '../domain/item.dart';
+import '../domain/listing_questionnaire.dart';
 import '../domain/scan_result.dart';
 
 class ScanApi {
@@ -119,19 +120,23 @@ class ScanApi {
               .take(6)
               .toList()
         : item.missingDetails;
+    var updated = item.copyWith(
+      name: exactName.isEmpty ? item.name : exactName,
+      confidence: _confidence(decoded['confidence']),
+      listingTitle: '${decoded['listingTitle'] ?? item.listingTitle}',
+      listingDescription:
+          '${decoded['listingDescription'] ?? item.listingDescription}',
+      searchQuery: '${decoded['searchQuery'] ?? item.searchQuery}',
+      marketplace: _marketplace(decoded['marketplace']),
+      marketplaceReason:
+          '${decoded['marketplaceReason'] ?? item.marketplaceReason}',
+      missingDetails: missingDetails,
+    );
+    if (item.confirmedDetails.isNotEmpty) {
+      updated = ListingQuestionnaire.apply(updated, item.confirmedDetails);
+    }
     return ItemIdentification(
-      item: item.copyWith(
-        name: exactName.isEmpty ? item.name : exactName,
-        confidence: _confidence(decoded['confidence']),
-        listingTitle: '${decoded['listingTitle'] ?? item.listingTitle}',
-        listingDescription:
-            '${decoded['listingDescription'] ?? item.listingDescription}',
-        searchQuery: '${decoded['searchQuery'] ?? item.searchQuery}',
-        marketplace: _marketplace(decoded['marketplace']),
-        marketplaceReason:
-            '${decoded['marketplaceReason'] ?? item.marketplaceReason}',
-        missingDetails: missingDetails,
-      ),
+      item: updated,
       manufacturer: '${decoded['manufacturer'] ?? ''}',
       model: '${decoded['model'] ?? ''}',
       serialDetected: decoded['serialDetected'] == true,

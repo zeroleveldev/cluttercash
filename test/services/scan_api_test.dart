@@ -127,6 +127,7 @@ void main() {
         effort: SaleEffort.medium,
         route: ItemRoute.sell,
         category: 'Cameras',
+        confirmedDetails: {'workingCondition': 'Shutter fires'},
       );
 
       final result = await ScanApi(
@@ -140,6 +141,7 @@ void main() {
       expect(captured.body.toLowerCase(), contains('content-type: image/jpeg'));
       expect(result.item.name, 'Canon AE-1 35mm film camera');
       expect(result.item.searchQuery, 'Canon AE-1 35mm film camera body');
+      expect(result.item.listingDescription, contains('Shutter fires'));
       expect(result.manufacturer, 'Canon');
       expect(result.model, 'AE-1');
       expect(result.serialDetected, true);

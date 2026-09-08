@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'domain/item.dart';
 import 'domain/listing_guide.dart';
+import 'domain/listing_questionnaire.dart';
 import 'domain/project.dart';
 import 'domain/scan_result.dart';
 import 'services/project_store.dart';
@@ -1214,6 +1215,7 @@ class _ItemDetailsSheetState extends State<_ItemDetailsSheet> {
   late TextEditingController descriptionController;
   bool identifying = false;
   String? identityStatus;
+  String? questionnaireStatus;
 
   ListingGuide get guide => ListingGuide.forItem(item);
 
@@ -1244,6 +1246,11 @@ class _ItemDetailsSheetState extends State<_ItemDetailsSheet> {
   void _copyDraft() {
     final text =
         '${titleController.text.trim()}\n\n${descriptionController.text.trim()}';
+    item = item.copyWith(
+      listingTitle: titleController.text.trim(),
+      listingDescription: descriptionController.text.trim(),
+    );
+    widget.onUpdated(item);
     Clipboard.setData(ClipboardData(text: text));
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Editable listing draft copied')),
@@ -1314,6 +1321,32 @@ class _ItemDetailsSheetState extends State<_ItemDetailsSheet> {
             : 'The label could not be analyzed. Try a sharper close photo.';
       });
     }
+  }
+
+  Future<void> _openQuestionnaire() async {
+    final draftItem = item.copyWith(
+      listingTitle: titleController.text.trim(),
+      listingDescription: descriptionController.text.trim(),
+    );
+    final answers = await showModalBottomSheet<Map<String, String>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: _paper,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (_) => _ListingQuestionnaireSheet(item: draftItem),
+    );
+    if (answers == null || !mounted) return;
+    final updated = ListingQuestionnaire.apply(draftItem, answers);
+    setState(() {
+      item = updated;
+      descriptionController.text = updated.listingDescription;
+      questionnaireStatus = updated.confirmedDetails.isEmpty
+          ? 'No seller details were added yet.'
+          : 'Listing refreshed with ${updated.confirmedDetails.length} seller-confirmed detail${updated.confirmedDetails.length == 1 ? '' : 's'}.';
+    });
+    widget.onUpdated(updated);
   }
 
   @override
@@ -1452,6 +1485,22 @@ class _ItemDetailsSheetState extends State<_ItemDetailsSheet> {
             'AI started this from what is visible. Correct every unknown before posting.',
           ),
           const SizedBox(height: 12),
+          FilledButton.tonalIcon(
+            onPressed: _openQuestionnaire,
+            icon: const Icon(Icons.fact_check_outlined),
+            label: const Text('Answer listing questions'),
+          ),
+          if (questionnaireStatus != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              questionnaireStatus!,
+              style: const TextStyle(
+                color: _forest,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
           TextField(
             controller: titleController,
             maxLength: 80,
@@ -1507,6 +1556,174 @@ class _ItemDetailsSheetState extends State<_ItemDetailsSheet> {
             child: const Text('I need to correct this item'),
           ),
         ],
+      ),
+    ),
+  );
+}
+
+class _ListingQuestionnaireSheet extends StatefulWidget {
+  const _ListingQuestionnaireSheet({required this.item});
+
+  final ClutterItem item;
+
+  @override
+  State<_ListingQuestionnaireSheet> createState() =>
+      _ListingQuestionnaireSheetState();
+}
+
+class _ListingQuestionnaireSheetState
+    extends State<_ListingQuestionnaireSheet> {
+  late final List<String> extraQuestions;
+  late final Map<String, TextEditingController> controllers;
+
+  @override
+  void initState() {
+    super.initState();
+    final previousExtra = widget.item.confirmedDetails.keys
+        .where((key) => key.startsWith('detail::'))
+        .map((key) => key.substring('detail::'.length));
+    extraQuestions = {
+      ...widget.item.missingDetails.where(
+        (detail) => !ListingQuestionnaire.usesCoreQuestion(detail),
+      ),
+      ...previousExtra,
+    }.toList();
+    final keys = [
+      ListingQuestionnaire.workingCondition,
+      ListingQuestionnaire.cosmeticWear,
+      ListingQuestionnaire.measurements,
+      ListingQuestionnaire.includedItems,
+      ListingQuestionnaire.otherNotes,
+      ...extraQuestions.map(ListingQuestionnaire.detailKey),
+    ];
+    controllers = {
+      for (final key in keys)
+        key: TextEditingController(
+          text: widget.item.confirmedDetails[key] ?? '',
+        ),
+    };
+  }
+
+  @override
+  void dispose() {
+    for (final controller in controllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  Widget _field(String key, String label, String hint, {int maxLines = 2}) =>
+      Padding(
+        padding: const EdgeInsets.only(bottom: 13),
+        child: TextField(
+          controller: controllers[key],
+          textCapitalization: TextCapitalization.sentences,
+          minLines: 1,
+          maxLines: maxLines,
+          decoration: InputDecoration(
+            labelText: label,
+            hintText: hint,
+            alignLabelWithHint: true,
+            border: const OutlineInputBorder(),
+          ),
+        ),
+      );
+
+  Map<String, String> get answers => {
+    for (final entry in controllers.entries) entry.key: entry.value.text,
+  };
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+    child: DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: .92,
+      minChildSize: .62,
+      maxChildSize: .97,
+      builder: (_, scrollController) => SingleChildScrollView(
+        controller: scrollController,
+        padding: const EdgeInsets.fromLTRB(22, 12, 22, 30),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD5D9D5),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Confirm the listing details',
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Only enter facts you personally checked. Blank answers stay unknown and will not be added to the listing.',
+            ),
+            const SizedBox(height: 18),
+            _field(
+              ListingQuestionnaire.workingCondition,
+              'Working condition',
+              'Example: tested and works, partially works, untested',
+            ),
+            _field(
+              ListingQuestionnaire.cosmeticWear,
+              'Cosmetic wear or damage',
+              'Describe scratches, chips, stains, cracks, or missing pieces',
+              maxLines: 3,
+            ),
+            _field(
+              ListingQuestionnaire.measurements,
+              'Measurements',
+              'Include units, such as 18 in wide × 12 in deep',
+            ),
+            _field(
+              ListingQuestionnaire.includedItems,
+              'Included items and accessories',
+              'List only what will be sold with the item',
+              maxLines: 3,
+            ),
+            if (extraQuestions.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                'Item-specific checks',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 10),
+              ...extraQuestions.map(
+                (question) => _field(
+                  ListingQuestionnaire.detailKey(question),
+                  question,
+                  'Enter the detail only if you verified it',
+                ),
+              ),
+            ],
+            _field(
+              ListingQuestionnaire.otherNotes,
+              'Other seller notes',
+              'Optional factual details a buyer should know',
+              maxLines: 3,
+            ),
+            const SizedBox(height: 4),
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(context, answers),
+              icon: const Icon(Icons.check_rounded),
+              label: const Text('Update listing draft'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+          ],
+        ),
       ),
     ),
   );

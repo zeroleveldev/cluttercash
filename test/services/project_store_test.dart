@@ -29,6 +29,10 @@ void main() {
               marketplace: Marketplace.ebay,
               marketplaceReason: 'Broad camera buyer pool.',
               missingDetails: ['Exact model', 'Working condition'],
+              confirmedDetails: {
+                'workingCondition': 'Shutter fires',
+                'includedItems': '50mm lens',
+              },
             ),
           )
           .recordSale('camera', soldPrice: 100, fees: 12);
@@ -47,6 +51,10 @@ void main() {
       expect(
         restored?.itemById('camera').missingDetails,
         contains('Working condition'),
+      );
+      expect(
+        restored?.itemById('camera').confirmedDetails['workingCondition'],
+        'Shutter fires',
       );
     },
   );

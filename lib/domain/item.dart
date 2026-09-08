@@ -36,6 +36,7 @@ class ClutterItem {
     this.marketplace = Marketplace.localPickup,
     this.marketplaceReason = '',
     this.missingDetails = const [],
+    this.confirmedDetails = const {},
     this.boxLeft = .12,
     this.boxTop = .12,
     this.boxWidth = .3,
@@ -61,6 +62,7 @@ class ClutterItem {
   final Marketplace marketplace;
   final String marketplaceReason;
   final List<String> missingDetails;
+  final Map<String, String> confirmedDetails;
   final double boxLeft;
   final double boxTop;
   final double boxWidth;
@@ -88,6 +90,7 @@ class ClutterItem {
     Marketplace? marketplace,
     String? marketplaceReason,
     List<String>? missingDetails,
+    Map<String, String>? confirmedDetails,
   }) => ClutterItem(
     id: id,
     name: name ?? this.name,
@@ -108,6 +111,7 @@ class ClutterItem {
     marketplace: marketplace ?? this.marketplace,
     marketplaceReason: marketplaceReason ?? this.marketplaceReason,
     missingDetails: missingDetails ?? this.missingDetails,
+    confirmedDetails: confirmedDetails ?? this.confirmedDetails,
     boxLeft: boxLeft,
     boxTop: boxTop,
     boxWidth: boxWidth,

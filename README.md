@@ -16,6 +16,8 @@ ClutterCash is a phone-first Flutter consumer app that turns a shelf, closet, or
 - Marketplace recommendations based on item type, likely value, shipping burden, and selling effort
 - Missing-detail checklists that prevent unknown model, condition, damage, or accessories from becoming invented claims
 - Privacy-consented follow-up model-label photos that refine the exact maker/model and regenerate search/listing fields
+- Seller-confirmation questionnaire for operation, wear, measurements, accessories, and AI-identified item-specific unknowns
+- Locally regenerated listing descriptions that clearly separate seller-confirmed facts from AI observations
 - Sell/bundle/donate/recycle/keep recommendations
 - Ranked action queue and item details
 - Listing-draft copy flow and better-photo guidance
@@ -57,6 +59,8 @@ Do not place `GEMINI_API_KEY` in `--dart-define`, Flutter assets, GitHub Pages, 
 Marketplace research in the free version opens official user-facing search pages; it does not scrape or ingest marketplace data. Active listings are labeled as asking prices, while eBay completed/sold results are presented as stronger—but still manually verified—evidence. The AI estimate is never presented as a researched comparable sale.
 
 For exact-item refinement, users should photograph the manufacturer/model label rather than a unique serial number. The follow-up endpoint returns only whether a serial was detected; it does not return or persist the serial itself. The same free-tier image privacy warning applies to label photos.
+
+Questionnaire answers are processed locally in the Flutter app; they are not sent to Gemini. Blank answers remain unknown, while confirmed answers are stored with the user's local project and added under a `Seller-confirmed details` section. Questionnaire answers never change the AI price estimate.
 
 ## Quality commands
 
