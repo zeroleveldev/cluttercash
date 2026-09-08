@@ -2,7 +2,7 @@ const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const WINDOW_MS = 60 * 60 * 1000;
 const MAX_SCANS_PER_WINDOW = 10;
 
-const prompt = `Analyze this staged, non-sensitive household clutter photo for decluttering triage. Identify up to 12 clearly visible objects that may be sold, bundled, donated, recycled, or kept. Be conservative. Resale values are broad US-dollar hypotheses, not live marketplace data or appraisals. Never infer a luxury brand, authenticity, exact model, material, dimensions, condition, or included accessories unless visible. High-value or uncertain objects must tell the user what label/model/condition photo to add. Recommend donate or bundle where sale effort likely exceeds value. Bounding boxes use normalized 0..1 coordinates. Return only the requested JSON schema.`;
+const prompt = `Analyze this staged, non-sensitive household clutter photo for decluttering triage. Identify up to 12 clearly visible objects that may be sold, bundled, donated, recycled, or kept. Be conservative. Resale values are broad US-dollar hypotheses, not live marketplace data or appraisals. Never infer a luxury brand, authenticity, exact model, material, dimensions, condition, or included accessories unless visible. High-value or uncertain objects must tell the user what label/model/condition photo to add. Recommend donate or bundle where sale effort likely exceeds value. For each item, create: (1) a concise searchQuery for finding truly comparable listings, excluding facts that are not visible; (2) an editable listingTitle no longer than 80 characters; (3) a short listingDescription that says what is visible and explicitly tells the seller to confirm unknown condition, model, damage, measurements, and accessories rather than inventing them; (4) a marketplace recommendation chosen from ebay, facebookMarketplace, mercari, localPickup, consignment, or donate with a reason; and (5) missingDetails the seller must confirm before posting. Do not claim that any live listings or completed sales were researched. Bounding boxes use normalized 0..1 coordinates. Return only the requested JSON schema.`;
 
 const responseSchema = {
   type: 'object',
@@ -13,7 +13,7 @@ const responseSchema = {
       type: 'array',
       items: {
         type: 'object',
-        required: ['id', 'name', 'category', 'lowValue', 'typicalValue', 'highValue', 'confidence', 'effort', 'route', 'reason', 'box'],
+        required: ['id', 'name', 'category', 'lowValue', 'typicalValue', 'highValue', 'confidence', 'effort', 'route', 'reason', 'listingTitle', 'listingDescription', 'searchQuery', 'marketplace', 'marketplaceReason', 'missingDetails', 'box'],
         properties: {
           id: { type: 'string' },
           name: { type: 'string' },
@@ -25,6 +25,12 @@ const responseSchema = {
           effort: { type: 'string', enum: ['low', 'medium', 'high'] },
           route: { type: 'string', enum: ['sell', 'bundle', 'donate', 'recycle', 'keep'] },
           reason: { type: 'string' },
+          listingTitle: { type: 'string' },
+          listingDescription: { type: 'string' },
+          searchQuery: { type: 'string' },
+          marketplace: { type: 'string', enum: ['ebay', 'facebookMarketplace', 'mercari', 'localPickup', 'consignment', 'donate'] },
+          marketplaceReason: { type: 'string' },
+          missingDetails: { type: 'array', items: { type: 'string' } },
           box: {
             type: 'object',
             required: ['left', 'top', 'width', 'height'],
@@ -153,6 +159,7 @@ function validateScan(value) {
   }
   const levels = new Set(['low', 'medium', 'high']);
   const routes = new Set(['sell', 'bundle', 'donate', 'recycle', 'keep']);
+  const marketplaces = new Set(['ebay', 'facebookMarketplace', 'mercari', 'localPickup', 'consignment', 'donate']);
   const items = value.items.slice(0, 20).map((item, index) => {
     if (!item || typeof item.name !== 'string') throw new Error('Invalid Gemini item');
     const low = finite(item.lowValue);
@@ -169,6 +176,14 @@ function validateScan(value) {
       effort: levels.has(item.effort) ? item.effort : 'medium',
       route: routes.has(item.route) ? item.route : 'keep',
       reason: String(item.reason || '').slice(0, 240),
+      listingTitle: String(item.listingTitle || `${item.name} — details to confirm`).slice(0, 80),
+      listingDescription: String(item.listingDescription || `${item.name}. Confirm the exact model, condition, damage, and included accessories before posting.`).slice(0, 700),
+      searchQuery: String(item.searchQuery || item.name).slice(0, 120),
+      marketplace: marketplaces.has(item.marketplace) ? item.marketplace : 'localPickup',
+      marketplaceReason: String(item.marketplaceReason || '').slice(0, 240),
+      missingDetails: Array.isArray(item.missingDetails)
+        ? item.missingDetails.map((detail) => String(detail).slice(0, 80)).filter(Boolean).slice(0, 6)
+        : [],
       box: {
         left: clamp(item.box?.left), top: clamp(item.box?.top),
         width: clamp(item.box?.width), height: clamp(item.box?.height),

@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'domain/item.dart';
+import 'domain/listing_guide.dart';
 import 'domain/project.dart';
 import 'domain/scan_result.dart';
 import 'services/project_store.dart';
@@ -793,6 +795,19 @@ ScanResult _demoResult() => ScanResult(
       route: ItemRoute.sell,
       category: 'Cameras',
       reason: 'Strong demand. Verify model number before listing.',
+      listingTitle: 'Vintage film camera — model and condition to confirm',
+      listingDescription:
+          'Vintage film camera with a black body and attached lens. Exact maker, model, working condition, cosmetic wear, and included accessories must be confirmed before posting.',
+      searchQuery: 'vintage film camera with lens',
+      marketplace: Marketplace.ebay,
+      marketplaceReason:
+          'eBay reaches camera collectors and makes model-by-model comparisons easier.',
+      missingDetails: [
+        'Maker and exact model',
+        'Shutter, meter, and film-advance operation',
+        'Lens markings and glass condition',
+        'Battery and included accessories',
+      ],
       boxLeft: .08,
       boxTop: .14,
       boxWidth: .34,
@@ -1015,97 +1030,16 @@ class _ResultsScreenState extends State<ResultsScreen> {
     ),
   );
 
-  void _showItem(
-    BuildContext context,
-    ClutterItem item,
-  ) => showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: _paper,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-    ),
-    builder: (context) => DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: .74,
-      minChildSize: .5,
-      maxChildSize: .92,
-      builder: (_, controller) => ListView(
-        controller: controller,
-        padding: const EdgeInsets.fromLTRB(22, 12, 22, 30),
-        children: [
-          Center(
-            child: Container(
-              width: 42,
-              height: 4,
-              decoration: BoxDecoration(
-                color: const Color(0xFFD5D9D5),
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              if (item.typicalValue >= 100)
-                const _Pill(text: 'BIG TICKET', color: _orange),
-              const Spacer(),
-              _ConfidenceChip(item.confidence),
-            ],
-          ),
-          const SizedBox(height: 13),
-          Text(item.name, style: Theme.of(context).textTheme.headlineLarge),
-          const SizedBox(height: 8),
-          Text(
-            r'$${item.lowValue.toInt()}–$${item.highValue.toInt()} likely resale',
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w900,
-              color: _forest,
-            ),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            'Expected net about \$${item.expectedNet.toStringAsFixed(0)} after typical fees and effort.',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 22),
-          _InfoBlock(
-            icon: Icons.lightbulb_outline_rounded,
-            title: 'Why it ranked here',
-            body: item.reason,
-          ),
-          const SizedBox(height: 12),
-          const _InfoBlock(
-            icon: Icons.photo_camera_back_outlined,
-            title: 'Get a better estimate',
-            body:
-                'Add a close photo of the model number, label, damage, and included accessories.',
-          ),
-          const SizedBox(height: 22),
-          FilledButton.icon(
-            onPressed: () {
-              Clipboard.setData(
-                ClipboardData(
-                  text:
-                      '${item.name} in good used condition. See photos for details. Local pickup available.',
-                ),
-              );
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Listing draft copied')),
-              );
-            },
-            icon: const Icon(Icons.copy_all_rounded),
-            label: const Text('Copy listing draft'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('I need to correct this item'),
-          ),
-        ],
-      ),
-    ),
-  );
+  void _showItem(BuildContext context, ClutterItem item) =>
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: _paper,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        builder: (_) => _ItemDetailsSheet(item: item),
+      );
 
   Future<void> _showProjectCreated(BuildContext context) async {
     var project = CleanoutProject.empty(
@@ -1248,6 +1182,217 @@ class _ResultsScreenState extends State<ResultsScreen> {
           content: Text('Progress card ready after your first completed item'),
         ),
       );
+}
+
+class _ItemDetailsSheet extends StatefulWidget {
+  const _ItemDetailsSheet({required this.item});
+
+  final ClutterItem item;
+
+  @override
+  State<_ItemDetailsSheet> createState() => _ItemDetailsSheetState();
+}
+
+class _ItemDetailsSheetState extends State<_ItemDetailsSheet> {
+  late final ListingGuide guide = ListingGuide.forItem(widget.item);
+  late final TextEditingController titleController = TextEditingController(
+    text: guide.title,
+  );
+  late final TextEditingController descriptionController =
+      TextEditingController(text: guide.description);
+
+  @override
+  void dispose() {
+    titleController.dispose();
+    descriptionController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _open(Uri uri) async {
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open that marketplace.')),
+      );
+    }
+  }
+
+  void _copyDraft() {
+    final text =
+        '${titleController.text.trim()}\n\n'
+        '${descriptionController.text.trim()}';
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Editable listing draft copied')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => DraggableScrollableSheet(
+    expand: false,
+    initialChildSize: .9,
+    minChildSize: .58,
+    maxChildSize: .96,
+    builder: (_, controller) => SingleChildScrollView(
+      controller: controller,
+      padding: const EdgeInsets.fromLTRB(22, 12, 22, 34),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Center(
+            child: Container(
+              width: 42,
+              height: 4,
+              decoration: BoxDecoration(
+                color: const Color(0xFFD5D9D5),
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              if (widget.item.typicalValue >= 100)
+                const _Pill(text: 'BIG TICKET', color: _orange),
+              const Spacer(),
+              _ConfidenceChip(widget.item.confidence),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            widget.item.name,
+            style: Theme.of(context).textTheme.headlineLarge,
+          ),
+          const SizedBox(height: 7),
+          Text(
+            '\$${widget.item.lowValue.toInt()}–\$${widget.item.highValue.toInt()} AI estimate',
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+              color: _forest,
+            ),
+          ),
+          const SizedBox(height: 5),
+          const Text(
+            'Estimate—not an appraisal or live marketplace result.',
+            style: TextStyle(color: _muted, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 18),
+          _InfoBlock(
+            icon: Icons.storefront_outlined,
+            title: 'Best place to try: ${guide.recommendedMarketplace.label}',
+            body: guide.marketplaceReason,
+          ),
+          const SizedBox(height: 22),
+          Text(
+            'Price research',
+            style: Theme.of(context).textTheme.headlineMedium,
+          ),
+          const SizedBox(height: 5),
+          Text(guide.evidenceDisclaimer),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: () => _open(guide.ebaySold),
+            icon: const Icon(Icons.receipt_long_outlined),
+            label: const Text('Sold results'),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: () => _open(guide.ebayActive),
+            icon: const Icon(Icons.sell_outlined),
+            label: const Text('Active listings'),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => _open(guide.facebookMarketplace),
+                  child: const Text('Facebook'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => _open(guide.mercari),
+                  child: const Text('Mercari'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 9),
+          Text(
+            'Search: ${guide.searchQuery}',
+            style: const TextStyle(color: _muted, fontSize: 12),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Editable listing draft',
+            style: Theme.of(context).textTheme.headlineMedium,
+          ),
+          const SizedBox(height: 5),
+          const Text(
+            'AI started this from what is visible. Correct every unknown before posting.',
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: titleController,
+            maxLength: 80,
+            decoration: const InputDecoration(
+              labelText: 'Title',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: descriptionController,
+            minLines: 4,
+            maxLines: 8,
+            decoration: const InputDecoration(
+              labelText: 'Description',
+              alignLabelWithHint: true,
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Confirm before posting',
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 6),
+          ...guide.missingDetails.map(
+            (detail) => Padding(
+              padding: const EdgeInsets.only(bottom: 5),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.check_box_outline_blank_rounded,
+                    size: 18,
+                    color: _forest,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(detail)),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 15),
+          FilledButton.icon(
+            onPressed: _copyDraft,
+            icon: const Icon(Icons.copy_all_rounded),
+            label: const Text('Copy edited listing'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('I need to correct this item'),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _ResultHero extends StatelessWidget {

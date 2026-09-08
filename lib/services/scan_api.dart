@@ -88,6 +88,18 @@ class ScanApi {
           effort: _effort(raw['effort']),
           route: _route(raw['route']),
           reason: '${raw['reason'] ?? ''}',
+          listingTitle: '${raw['listingTitle'] ?? ''}',
+          listingDescription: '${raw['listingDescription'] ?? ''}',
+          searchQuery: '${raw['searchQuery'] ?? ''}',
+          marketplace: _marketplace(raw['marketplace']),
+          marketplaceReason: '${raw['marketplaceReason'] ?? ''}',
+          missingDetails: raw['missingDetails'] is List
+              ? (raw['missingDetails'] as List)
+                    .map((detail) => detail.toString())
+                    .where((detail) => detail.trim().isNotEmpty)
+                    .take(6)
+                    .toList()
+              : const [],
           boxLeft: _number(box['left']),
           boxTop: _number(box['top']),
           boxWidth: _number(box['width']),
@@ -113,6 +125,9 @@ class ScanApi {
   static ItemRoute _route(dynamic value) =>
       ItemRoute.values.where((e) => e.name == value).firstOrNull ??
       ItemRoute.keep;
+  static Marketplace _marketplace(dynamic value) =>
+      Marketplace.values.where((e) => e.name == value).firstOrNull ??
+      Marketplace.localPickup;
   static String? _errorMessage(String body) {
     try {
       final value = jsonDecode(body);

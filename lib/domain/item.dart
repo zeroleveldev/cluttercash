@@ -6,6 +6,15 @@ enum ItemRoute { sell, bundle, donate, recycle, keep }
 
 enum ItemStatus { unreviewed, sell, listed, sold, donated, recycled, keep }
 
+enum Marketplace {
+  ebay,
+  facebookMarketplace,
+  mercari,
+  localPickup,
+  consignment,
+  donate,
+}
+
 class ClutterItem {
   const ClutterItem({
     required this.id,
@@ -21,6 +30,12 @@ class ClutterItem {
     this.fees = 0,
     this.category = 'Home',
     this.reason = '',
+    this.listingTitle = '',
+    this.listingDescription = '',
+    this.searchQuery = '',
+    this.marketplace = Marketplace.localPickup,
+    this.marketplaceReason = '',
+    this.missingDetails = const [],
     this.boxLeft = .12,
     this.boxTop = .12,
     this.boxWidth = .3,
@@ -40,6 +55,12 @@ class ClutterItem {
   final double fees;
   final String category;
   final String reason;
+  final String listingTitle;
+  final String listingDescription;
+  final String searchQuery;
+  final Marketplace marketplace;
+  final String marketplaceReason;
+  final List<String> missingDetails;
   final double boxLeft;
   final double boxTop;
   final double boxWidth;
@@ -74,6 +95,12 @@ class ClutterItem {
     fees: fees ?? this.fees,
     category: category,
     reason: reason,
+    listingTitle: listingTitle,
+    listingDescription: listingDescription,
+    searchQuery: searchQuery,
+    marketplace: marketplace,
+    marketplaceReason: marketplaceReason,
+    missingDetails: missingDetails,
     boxLeft: boxLeft,
     boxTop: boxTop,
     boxWidth: boxWidth,

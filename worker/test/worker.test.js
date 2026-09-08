@@ -50,12 +50,21 @@ test('sends the image to Gemini and returns a validated scan contract', async ()
       sceneSummary: 'Garage shelf',
       items: [{ id: 'camera', name: 'Film camera', category: 'Cameras', lowValue: 80,
         typicalValue: 110, highValue: 150, confidence: 'medium', effort: 'medium',
-        route: 'sell', reason: 'Check model', box: { left: .1, top: .2, width: .3, height: .4 } }],
+        route: 'sell', reason: 'Check model', listingTitle: 'Film camera — model unknown',
+        listingDescription: 'Film camera. Confirm model and condition before posting.',
+        searchQuery: 'film camera body', marketplace: 'ebay',
+        marketplaceReason: 'eBay has a broad camera buyer pool.',
+        missingDetails: ['Exact model', 'Working condition'],
+        box: { left: .1, top: .2, width: .3, height: .4 } }],
     }) }] } }] });
   };
   const response = await createHandler({ fetcher })(imageRequest(), env);
   assert.equal(response.status, 200);
-  assert.equal((await response.json()).items[0].name, 'Film camera');
+  const result = await response.json();
+  assert.equal(result.items[0].name, 'Film camera');
+  assert.equal(result.items[0].listingTitle, 'Film camera — model unknown');
+  assert.equal(result.items[0].marketplace, 'ebay');
+  assert.deepEqual(result.items[0].missingDetails, ['Exact model', 'Working condition']);
   assert.equal(providerRequest.contents[0].parts[1].inlineData.mimeType, 'image/jpeg');
   assert.equal(providerRequest.generationConfig.responseMimeType, 'application/json');
   assert.equal('maxItems' in providerRequest.generationConfig.responseJsonSchema.properties.items, false);

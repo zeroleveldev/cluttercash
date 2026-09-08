@@ -70,6 +70,12 @@ class ProjectStore {
     'fees': item.fees,
     'category': item.category,
     'reason': item.reason,
+    'listingTitle': item.listingTitle,
+    'listingDescription': item.listingDescription,
+    'searchQuery': item.searchQuery,
+    'marketplace': item.marketplace.name,
+    'marketplaceReason': item.marketplaceReason,
+    'missingDetails': item.missingDetails,
     'boxLeft': item.boxLeft,
     'boxTop': item.boxTop,
     'boxWidth': item.boxWidth,
@@ -90,6 +96,20 @@ class ProjectStore {
     fees: _number(value['fees']),
     category: '${value['category'] ?? 'Other'}',
     reason: '${value['reason'] ?? ''}',
+    listingTitle: '${value['listingTitle'] ?? ''}',
+    listingDescription: '${value['listingDescription'] ?? ''}',
+    searchQuery: '${value['searchQuery'] ?? ''}',
+    marketplace: _enum(
+      Marketplace.values,
+      value['marketplace'],
+      Marketplace.localPickup,
+    ),
+    marketplaceReason: '${value['marketplaceReason'] ?? ''}',
+    missingDetails: value['missingDetails'] is List
+        ? (value['missingDetails'] as List)
+              .map((detail) => detail.toString())
+              .toList()
+        : const [],
     boxLeft: _number(value['boxLeft']),
     boxTop: _number(value['boxTop']),
     boxWidth: _number(value['boxWidth']),

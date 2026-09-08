@@ -23,6 +23,13 @@ void main() {
             'effort': 'medium',
             'route': 'sell',
             'reason': 'Check the model number',
+            'listingTitle': 'Film camera — model unknown',
+            'listingDescription':
+                'Film camera. Confirm the model and working condition before posting.',
+            'searchQuery': 'film camera body model unknown',
+            'marketplace': 'ebay',
+            'marketplaceReason': 'Camera buyers can compare models on eBay.',
+            'missingDetails': ['Exact model', 'Working condition'],
             'box': {'left': .1, 'top': .2, 'width': .3, 'height': .4},
           },
         ],
@@ -33,6 +40,10 @@ void main() {
     expect(scan.items.single.name, 'Film camera');
     expect(scan.items.single.typicalValue, 110);
     expect(scan.items.single.boxTop, .2);
+    expect(scan.items.single.listingTitle, 'Film camera — model unknown');
+    expect(scan.items.single.searchQuery, 'film camera body model unknown');
+    expect(scan.items.single.marketplace.name, 'ebay');
+    expect(scan.items.single.missingDetails, contains('Working condition'));
     expect(scan.bigTicketItems(), hasLength(1));
   });
 

@@ -32,4 +32,33 @@ void main() {
     expect(find.text('Your action queue'), findsOneWidget);
     expect(find.text('Vintage film camera'), findsOneWidget);
   });
+  testWidgets(
+    'item details offer evidence links and an editable listing draft',
+    (tester) async {
+      await tester.pumpWidget(const ClutterCashApp());
+      final scanButton = find.widgetWithText(FilledButton, 'Scan my space');
+      await tester.ensureVisible(scanButton);
+      await tester.tap(scanButton);
+      await tester.pumpAndSettle();
+      final demoButton = find.text('Try the demo room');
+      await tester.ensureVisible(demoButton);
+      await tester.tap(demoButton);
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pumpAndSettle();
+
+      final item = find.text('Vintage film camera');
+      final itemCard = find.ancestor(of: item, matching: find.byType(InkWell));
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -260));
+      await tester.pumpAndSettle();
+      await tester.tap(itemCard.first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Price research'), findsOneWidget);
+      expect(find.text('Sold results'), findsOneWidget);
+      expect(find.text('Active listings'), findsOneWidget);
+      expect(find.text('Editable listing draft'), findsOneWidget);
+      expect(find.textContaining('asking prices'), findsOneWidget);
+    },
+  );
 }

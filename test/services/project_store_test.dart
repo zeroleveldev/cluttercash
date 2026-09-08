@@ -23,6 +23,12 @@ void main() {
               confidence: Confidence.medium,
               effort: SaleEffort.medium,
               route: ItemRoute.sell,
+              listingTitle: 'Film camera — model unknown',
+              listingDescription: 'Confirm model and condition before posting.',
+              searchQuery: 'film camera body',
+              marketplace: Marketplace.ebay,
+              marketplaceReason: 'Broad camera buyer pool.',
+              missingDetails: ['Exact model', 'Working condition'],
             ),
           )
           .recordSale('camera', soldPrice: 100, fees: 12);
@@ -33,6 +39,15 @@ void main() {
       expect(restored?.name, 'Garage Reset');
       expect(restored?.itemById('camera').status, ItemStatus.sold);
       expect(restored?.realizedEarnings, 88);
+      expect(
+        restored?.itemById('camera').listingTitle,
+        'Film camera — model unknown',
+      );
+      expect(restored?.itemById('camera').marketplace, Marketplace.ebay);
+      expect(
+        restored?.itemById('camera').missingDetails,
+        contains('Working condition'),
+      );
     },
   );
 
