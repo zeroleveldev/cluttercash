@@ -78,5 +78,6 @@ void main() {
     expect(captured.headers['content-type'], contains('multipart/form-data'));
     expect(captured.body, contains('betaConsent'));
     expect(captured.body, contains('true'));
+    expect(captured.body.toLowerCase(), contains('content-type: image/jpeg'));
   });
 }

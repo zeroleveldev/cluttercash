@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 
 import '../domain/item.dart';
 import '../domain/scan_result.dart';
@@ -34,6 +35,7 @@ class ScanApi {
                 'image',
                 bytes,
                 filename: 'room.jpg',
+                contentType: MediaType('image', 'jpeg'),
               ),
             );
       final streamed = await client
