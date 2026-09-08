@@ -28,6 +28,7 @@ class ScanApi {
               'POST',
               Uri.parse('${baseUrl.replaceAll(RegExp(r'/$'), '')}/v1/scans'),
             )
+            ..fields['betaConsent'] = 'true'
             ..files.add(
               http.MultipartFile.fromBytes(
                 'image',

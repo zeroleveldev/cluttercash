@@ -8,7 +8,8 @@ ClutterCash is a phone-first Flutter consumer app that turns a shelf, closet, or
 
 - Polished one-action onboarding and camera/gallery capture
 - Honest interactive demo with multi-item value ranges and a big-ticket highlight
-- Optional live photo analysis through a separate server-side OpenAI-compatible vision API
+- Live staged-photo analysis through a Cloudflare Worker backed by Gemini
+- Explicit free-tier privacy warning and consent before uploads
 - Strict scan response validation; malformed results fail instead of inventing values
 - Sell/bundle/donate/recycle/keep recommendations
 - Ranked action queue and item details
@@ -29,27 +30,24 @@ Tap **Scan my space → Try the demo room**. The demo is intentionally available
 
 ## Enable real photo analysis
 
-The API keeps provider credentials off the client. Photos stay in memory, have an 8 MB cap, are not written to disk by this server, and responses use `Cache-Control: no-store`.
+The API keeps the Gemini credential off the client. Photos stay in memory, have an 8 MB cap, are not written to disk by the Worker, and responses use `Cache-Control: no-store`.
 
 ```bash
-cd server
+cd worker
 npm install
-copy .env.example .env
-# Put OPENAI_API_KEY in server/.env; optionally change OPENAI_MODEL.
-npm start
+npx wrangler login
+npx wrangler secret put GEMINI_API_KEY
+npm run deploy
 ```
 
-Then run Flutter with the API URL visible to the device:
+Then run Flutter with the deployed HTTPS URL:
 
 ```bash
-# Chrome on this computer
-flutter run -d chrome --dart-define=CLUTTERCASH_API_URL=http://localhost:8787
-
-# Android emulator (when installed)
-flutter run -d android --dart-define=CLUTTERCASH_API_URL=http://10.0.2.2:8787
+flutter run -d chrome \
+  --dart-define=CLUTTERCASH_API_URL=https://cluttercash-api.zeroleveldev.workers.dev
 ```
 
-For a physical phone, use an HTTPS deployment or the development computer's reachable LAN address. Do not place `OPENAI_API_KEY` in `--dart-define`, Flutter assets, or client code.
+Do not place `GEMINI_API_KEY` in `--dart-define`, Flutter assets, GitHub Pages, or client code. Gemini's free tier is restricted here to staged, non-sensitive photos because free-tier submissions may be reviewed or used to improve Google's products.
 
 ## Quality commands
 
@@ -59,6 +57,7 @@ flutter analyze
 flutter build web --release
 flutter build apk --release
 npm test --prefix server
+npm test --prefix worker
 ```
 
 ## Architecture
@@ -69,7 +68,8 @@ npm test --prefix server
 - `lib/main.dart` — responsive mobile UI and complete demo flow
 - `server/src/app.js` — bounded Express API with injected analyzer seam
 - `server/src/openai-analyzer.js` — server-only image analysis and JSON schema
-- `test/` and `server/test/` — domain, storage, API, and critical UI-flow tests
+- `worker/src/worker.js` — deployed Gemini proxy, consent gate, CORS, validation, and rate limiting
+- `test/`, `server/test/`, and `worker/test/` — domain, storage, API, and critical UI-flow tests
 
 ## Product thesis (not market validation)
 

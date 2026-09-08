@@ -1,7 +1,10 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:cluttercash/services/scan_api.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 
 void main() {
   test('parses the server scan contract into domain values', () {
@@ -38,5 +41,42 @@ void main() {
       () => ScanApi.parseResponse('{"items": []}', projectId: 'garage'),
       throwsFormatException,
     );
+  });
+
+  test('live uploads include explicit free-beta privacy consent', () async {
+    late http.Request captured;
+    final client = MockClient((request) async {
+      captured = request;
+      return http.Response(
+        jsonEncode({
+          'sceneSummary': 'Shelf',
+          'items': [
+            {
+              'id': 'lamp',
+              'name': 'Lamp',
+              'category': 'Home',
+              'lowValue': 10,
+              'typicalValue': 15,
+              'highValue': 20,
+              'confidence': 'medium',
+              'effort': 'low',
+              'route': 'sell',
+              'reason': 'Visible lamp',
+              'box': {'left': 0, 'top': 0, 'width': 1, 'height': 1},
+            },
+          ],
+        }),
+        200,
+      );
+    });
+
+    await ScanApi(
+      baseUrl: 'https://api.example',
+      client: client,
+    ).analyze(Uint8List.fromList([1, 2, 3]));
+
+    expect(captured.headers['content-type'], contains('multipart/form-data'));
+    expect(captured.body, contains('betaConsent'));
+    expect(captured.body, contains('true'));
   });
 }

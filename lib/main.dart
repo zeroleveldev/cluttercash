@@ -395,7 +395,32 @@ class CaptureScreen extends StatelessWidget {
     );
     if (image == null || !context.mounted) return;
     final bytes = await image.readAsBytes();
-    if (context.mounted) _analyze(context, bytes);
+    if (!context.mounted) return;
+    final accepted = await _confirmFreeBeta(context);
+    if (accepted && context.mounted) _analyze(context, bytes);
+  }
+
+  Future<bool> _confirmFreeBeta(BuildContext context) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Free AI beta privacy'),
+            content: const Text(
+              'Only upload a staged, non-sensitive photo. Do not include faces, mail, addresses, keys, medication, documents, or private belongings. Google may review free-tier AI submissions and use them to improve its products.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('I understand'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
   }
 
   void _analyze(BuildContext context, [Uint8List? bytes]) =>
