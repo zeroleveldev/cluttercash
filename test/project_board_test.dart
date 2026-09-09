@@ -1,11 +1,21 @@
 import 'package:cluttercash/domain/item.dart';
 import 'package:cluttercash/domain/project.dart';
 import 'package:cluttercash/main.dart';
+import 'package:cluttercash/services/telemetry.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+class _RecordingTelemetry implements TelemetryReporter {
+  final events = <TelemetryEvent>[];
+
+  @override
+  Future<void> record(TelemetryEvent event, {TelemetryFailure? failure}) async {
+    events.add(event);
+  }
+}
+
 void main() {
-  testWidgets('cash sprint records a sale and updates visible earnings', (
+  testWidgets('Sold marks an item cleared without recording earnings', (
     tester,
   ) async {
     final project = CleanoutProject.empty(id: 'garage', name: 'Garage Reset')
@@ -23,16 +33,31 @@ void main() {
           ),
         );
 
+    final telemetry = _RecordingTelemetry();
     await tester.pumpWidget(
-      MaterialApp(home: ProjectBoardScreen(project: project)),
+      TelemetryScope(
+        reporter: telemetry,
+        child: MaterialApp(home: ProjectBoardScreen(project: project)),
+      ),
     );
     expect(find.text('Garage Reset'), findsOneWidget);
-    expect(find.text(r'$0 earned'), findsOneWidget);
+    expect(find.textContaining('earned'), findsNothing);
+
+    final estimateDisclaimer = find.textContaining(
+      'Potential values are estimates',
+    );
+    await tester.scrollUntilVisible(
+      estimateDisclaimer,
+      200,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(estimateDisclaimer, findsOneWidget);
 
     await tester.tap(find.text('Sold'));
     await tester.pumpAndSettle();
 
-    expect(find.text(r'$171 earned'), findsOneWidget);
     expect(find.text('1 of 1 cleared'), findsOneWidget);
+    expect(find.textContaining('earned'), findsNothing);
+    expect(telemetry.events, [TelemetryEvent.itemStatusUpdated]);
   });
 }

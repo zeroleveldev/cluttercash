@@ -14,18 +14,11 @@ void main() {
     route: ItemRoute.sell,
     category: 'Cameras',
     reason: 'Model label is not visible.',
-    listingTitle: 'Vintage Nikon film camera — model unknown',
-    listingDescription:
-        'Vintage Nikon film camera. Exact model, working condition, and included accessories must be confirmed before posting.',
+
     searchQuery: 'vintage Nikon film camera body',
     marketplace: Marketplace.ebay,
     marketplaceReason:
         'eBay reaches more camera buyers and supports shipped listings.',
-    missingDetails: [
-      'Exact model',
-      'Working condition',
-      'Included accessories',
-    ],
   );
 
   test('builds separate active and completed-sale eBay searches', () {
@@ -52,16 +45,7 @@ void main() {
     expect(guide.evidenceDisclaimer.toLowerCase(), contains('completed-sale'));
   });
 
-  test(
-    'listing copy preserves unknown facts instead of inventing condition',
-    () {
-      final guide = ListingGuide.forItem(item);
-
-      expect(guide.title, item.listingTitle);
-      expect(guide.description, item.listingDescription);
-      expect(guide.description, isNot(contains('good used condition')));
-      expect(guide.missingDetails, contains('Working condition'));
-      expect(guide.recommendedMarketplace, Marketplace.ebay);
-    },
-  );
+  test('keeps the recommended marketplace for research links', () {
+    expect(ListingGuide.forItem(item).recommendedMarketplace, Marketplace.ebay);
+  });
 }

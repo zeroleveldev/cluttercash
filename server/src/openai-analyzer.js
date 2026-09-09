@@ -1,4 +1,4 @@
-const prompt = `Analyze this household clutter photo for decluttering triage. Identify up to 12 clearly visible, plausibly sellable objects. Be conservative. Values are approximate US resale ranges, never appraisals. Do not infer luxury brands, authenticity, model numbers, materials, dimensions, or condition you cannot see. Rank routes by expected net proceeds and effort. Recommend donate/recycle/bundle when sale effort likely exceeds value. Bounding boxes use normalized 0..1 coordinates. Return JSON only.`;
+const prompt = `Analyze this household clutter photo for decluttering triage. Identify up to 12 clearly visible, plausibly sellable objects. Be conservative. Values are approximate US resale ranges, never appraisals. Do not infer luxury brands, authenticity, model numbers, materials, dimensions, or condition you cannot see. Prioritize higher potential value with lower selling effort, without estimating transaction deductions. Recommend donate, recycle, or bundle when sale effort likely exceeds value. Bounding boxes use normalized 0..1 coordinates. Return JSON only.`;
 
 const schema = {
   name: 'clutter_scan', strict: true,

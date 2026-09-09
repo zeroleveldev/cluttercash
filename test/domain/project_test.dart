@@ -3,7 +3,7 @@ import 'package:cluttercash/domain/project.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('project board tracks decisions, sold cash, and cleared progress', () {
+  test('project board tracks item status and cleared progress', () {
     var project = CleanoutProject.empty(id: 'garage', name: 'Garage Reset')
         .addItem(
           const ClutterItem(
@@ -17,11 +17,9 @@ void main() {
             route: ItemRoute.sell,
           ),
         )
-        .updateStatus('camera', ItemStatus.listed)
-        .recordSale('camera', soldPrice: 180, fees: 24);
+        .updateStatus('camera', ItemStatus.sold);
 
     expect(project.itemById('camera').status, ItemStatus.sold);
-    expect(project.realizedEarnings, 156);
     expect(project.clearedCount, 1);
     expect(project.progress, 1);
   });

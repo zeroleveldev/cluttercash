@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -6,21 +8,23 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'domain/item.dart';
 import 'domain/listing_guide.dart';
-import 'domain/listing_questionnaire.dart';
 import 'domain/project.dart';
 import 'domain/scan_result.dart';
 import 'services/project_store.dart';
 import 'services/scan_api.dart';
+import 'services/telemetry.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  const telemetry = TelemetryClient(baseUrl: _apiUrl, inviteCode: _betaInvite);
+  installTelemetryErrorHandlers(telemetry);
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.dark,
     ),
   );
-  runApp(const ClutterCashApp());
+  runApp(const ClutterCashApp(telemetry: telemetry));
 }
 
 const _ink = Color(0xFF14231B);
@@ -31,72 +35,89 @@ const _paper = Color(0xFFFFFDF7);
 const _muted = Color(0xFF637067);
 const _orange = Color(0xFFFFA655);
 const _apiUrl = String.fromEnvironment('CLUTTERCASH_API_URL');
+const _betaInvite = String.fromEnvironment('CLUTTERCASH_BETA_INVITE');
 
 class ClutterCashApp extends StatelessWidget {
-  const ClutterCashApp({super.key});
+  const ClutterCashApp({
+    super.key,
+    this.telemetry = const TelemetryClient(
+      baseUrl: _apiUrl,
+      inviteCode: _betaInvite,
+    ),
+  });
+
+  final TelemetryReporter telemetry;
 
   @override
-  Widget build(BuildContext context) => MaterialApp(
-    debugShowCheckedModeBanner: false,
-    title: 'ClutterCash',
-    theme: ThemeData(
-      useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: _forest,
-        primary: _forest,
-        secondary: _lime,
-        surface: _paper,
-      ),
-      scaffoldBackgroundColor: _cream,
-      fontFamily: 'sans-serif',
-      textTheme: const TextTheme(
-        displayLarge: TextStyle(
-          fontSize: 47,
-          height: .96,
-          fontWeight: FontWeight.w900,
-          letterSpacing: -2.2,
-          color: _ink,
+  Widget build(BuildContext context) => TelemetryScope(
+    reporter: telemetry,
+    child: MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'ClutterCash',
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: _forest,
+          primary: _forest,
+          secondary: _lime,
+          surface: _paper,
         ),
-        headlineLarge: TextStyle(
-          fontSize: 32,
-          height: 1.05,
-          fontWeight: FontWeight.w900,
-          letterSpacing: -1.2,
-          color: _ink,
+        scaffoldBackgroundColor: _cream,
+        fontFamily: 'sans-serif',
+        textTheme: const TextTheme(
+          displayLarge: TextStyle(
+            fontSize: 47,
+            height: .96,
+            fontWeight: FontWeight.w900,
+            letterSpacing: -2.2,
+            color: _ink,
+          ),
+          headlineLarge: TextStyle(
+            fontSize: 32,
+            height: 1.05,
+            fontWeight: FontWeight.w900,
+            letterSpacing: -1.2,
+            color: _ink,
+          ),
+          headlineMedium: TextStyle(
+            fontSize: 24,
+            height: 1.1,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -.7,
+            color: _ink,
+          ),
+          titleLarge: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: _ink,
+          ),
+          bodyLarge: TextStyle(fontSize: 16, height: 1.45, color: _muted),
+          bodyMedium: TextStyle(fontSize: 14, height: 1.4, color: _muted),
         ),
-        headlineMedium: TextStyle(
-          fontSize: 24,
-          height: 1.1,
-          fontWeight: FontWeight.w800,
-          letterSpacing: -.7,
-          color: _ink,
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+            backgroundColor: _ink,
+            foregroundColor: Colors.white,
+            minimumSize: const Size.fromHeight(58),
+            textStyle: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
+          ),
         ),
-        titleLarge: TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.w800,
-          color: _ink,
-        ),
-        bodyLarge: TextStyle(fontSize: 16, height: 1.45, color: _muted),
-        bodyMedium: TextStyle(fontSize: 14, height: 1.4, color: _muted),
-      ),
-      filledButtonTheme: FilledButtonThemeData(
-        style: FilledButton.styleFrom(
-          backgroundColor: _ink,
-          foregroundColor: Colors.white,
-          minimumSize: const Size.fromHeight(58),
-          textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+        cardTheme: CardThemeData(
+          color: _paper,
+          elevation: 0,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(24),
           ),
         ),
       ),
-      cardTheme: CardThemeData(
-        color: _paper,
-        elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      ),
+      home: const WelcomeScreen(),
     ),
-    home: const WelcomeScreen(),
   );
 }
 
@@ -144,7 +165,25 @@ class WelcomeScreen extends StatelessWidget {
                   icon: const Icon(Icons.center_focus_strong_rounded),
                   label: const Text('Scan my space'),
                 ),
-                const SizedBox(height: 13),
+                TextButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ProjectLibraryScreen(),
+                    ),
+                  ),
+                  icon: const Icon(Icons.folder_open_outlined),
+                  label: const Text('Open saved projects'),
+                ),
+                TextButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const BetaTermsScreen()),
+                  ),
+                  icon: const Icon(Icons.privacy_tip_outlined),
+                  label: const Text('Privacy & beta terms'),
+                ),
+                const SizedBox(height: 4),
                 const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -168,7 +207,7 @@ class WelcomeScreen extends StatelessWidget {
                     Expanded(
                       child: _TinyFeature(
                         icon: Icons.sell_outlined,
-                        title: 'Net value',
+                        title: 'Potential value',
                         caption: 'Not hype',
                       ),
                     ),
@@ -195,6 +234,328 @@ class WelcomeScreen extends StatelessWidget {
           ),
         ),
       ),
+    ),
+  );
+}
+
+class BetaTermsScreen extends StatelessWidget {
+  const BetaTermsScreen({super.key});
+
+  static const supportEmail = 'cluttercash.help@gmail.com';
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      backgroundColor: _cream,
+      title: const Text('Privacy & beta terms'),
+    ),
+    body: SafeArea(
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 720),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(22, 16, 22, 32),
+            children: const [
+              Text(
+                'Free invited beta',
+                style: TextStyle(
+                  color: _forest,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.1,
+                ),
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Your beta privacy',
+                style: TextStyle(
+                  color: _ink,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 30,
+                  height: 1.05,
+                ),
+              ),
+              SizedBox(height: 10),
+              Text(
+                'Effective September 9, 2026. This free, invite-only beta has no subscriptions, scan packs, payments, or in-app purchases.',
+                style: TextStyle(color: _muted, height: 1.45),
+              ),
+              SizedBox(height: 22),
+              _TermsSection(
+                title: 'What this app is—and is not',
+                body:
+                    'ClutterCash helps you identify visible items that may be worth selling and provides potential selling-value ranges and marketplace research links. It is not an appraisal, authentication service, marketplace, financial advisor, transaction tracker, listing tool, or guarantee of a sale. Verify model, condition, accessories, price, and marketplace rules before posting.',
+              ),
+              _TermsSection(
+                title: 'Photos and AI processing',
+                body:
+                    'When you choose a live scan or model-label photo and accept the upload notice, the app sends the image through ClutterCash’s Cloudflare Worker to Google Gemini. The Worker processes image bytes in memory and is designed not to write them to disk. Google may review free-tier submissions and use them to improve its products. Never upload faces, mail, addresses, keys, medication, documents, account information, or other sensitive/private content.',
+              ),
+              _TermsSection(
+                title: 'Your data and local storage',
+                body:
+                    'This beta has no account or cloud project sync. Projects, results, corrections, and item statuses stay in local app/browser storage on this device. Live AI routes require a revocable invite code and reserve limits through a Cloudflare Durable Object; this is beta access protection, not a user account or profile.',
+              ),
+              _TermsSection(
+                title: 'Minimal beta diagnostics',
+                body:
+                    'An invited build sends only allow-listed event names for scan progress, local project creation or reopening, item corrections or status updates, and coarse app-crash categories to ClutterCash Worker logs. These events do not include photos, item or project names, values, invite codes or hashes, error text, or device/account IDs. Delivery is best-effort. Cloudflare and network providers may process standard connection data under their own policies.',
+              ),
+              _TermsSection(
+                title: 'Delete your data',
+                body:
+                    'Use Saved projects to delete one project or all local projects. You can also uninstall the app or clear this site/app’s storage. These actions cannot be undone. ClutterCash does not provide cloud image storage or a provider-deletion tool; Google’s handling of uploaded photos is governed by Google’s policies.',
+              ),
+              _TermsSection(
+                title: 'Your responsibility',
+                body:
+                    'Use the beta only if you are at least 18 and have permission to photograph the space and items. Marketplace searches are user-facing links, not scraped price data or direct posting. Verify the item and price yourself and follow each marketplace’s rules, fees, taxes, safety guidance, and terms.',
+              ),
+              _TermsSection(
+                title: 'Support and feedback',
+                body:
+                    'For beta support, feedback, privacy questions, or help deleting local data, email the support inbox below. Do not email sensitive photos, serial numbers, passwords, account information, or payment details.',
+              ),
+              Text(
+                supportEmail,
+                style: TextStyle(
+                  color: _forest,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                ),
+              ),
+              SizedBox(height: 12),
+              Text(
+                'Full notice: docs/BETA_PRIVACY_AND_TERMS.md',
+                style: TextStyle(color: _muted, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class _TermsSection extends StatelessWidget {
+  const _TermsSection({required this.title, required this.body});
+
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 18),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            color: _ink,
+            fontSize: 17,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 5),
+        Text(body, style: const TextStyle(color: _muted, height: 1.45)),
+      ],
+    ),
+  );
+}
+
+class ProjectLibraryScreen extends StatefulWidget {
+  const ProjectLibraryScreen({super.key, this.store});
+
+  final ProjectStore? store;
+
+  @override
+  State<ProjectLibraryScreen> createState() => _ProjectLibraryScreenState();
+}
+
+class _ProjectLibraryScreenState extends State<ProjectLibraryScreen> {
+  ProjectStore? store;
+  List<CleanoutProject> projects = const [];
+  bool loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProjects();
+  }
+
+  Future<void> _loadProjects() async {
+    final nextStore =
+        widget.store ?? ProjectStore(await SharedPreferences.getInstance());
+    final nextProjects = await nextStore.loadAll();
+    if (!mounted) return;
+    setState(() {
+      store = nextStore;
+      projects = nextProjects;
+      loading = false;
+    });
+  }
+
+  Future<void> _openProject(CleanoutProject project) async {
+    final projectStore = store;
+    if (projectStore == null) return;
+    unawaited(
+      TelemetryScope.of(context).record(TelemetryEvent.projectReopened),
+    );
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            ProjectBoardScreen(project: project, store: projectStore),
+      ),
+    );
+    await _loadProjects();
+  }
+
+  Future<void> _deleteProject(CleanoutProject project) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete project?'),
+        content: Text(
+          'Delete “${project.name}” from this device? This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete project'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || store == null) return;
+    await store!.delete(project.id);
+    await _loadProjects();
+  }
+
+  Future<void> _deleteAllProjects() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete all saved projects?'),
+        content: const Text(
+          'Delete every saved ClutterCash project from this device? This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete all'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || store == null) return;
+    await Future.wait(projects.map((project) => store!.delete(project.id)));
+    await _loadProjects();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      backgroundColor: _cream,
+      title: const Text(
+        'Your projects',
+        style: TextStyle(fontWeight: FontWeight.w900),
+      ),
+      actions: [
+        if (projects.isNotEmpty)
+          IconButton(
+            tooltip: 'Delete all projects',
+            onPressed: _deleteAllProjects,
+            icon: const Icon(Icons.delete_sweep_outlined),
+          ),
+      ],
+    ),
+    body: SafeArea(
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 600),
+          child: loading
+              ? const Center(child: CircularProgressIndicator())
+              : projects.isEmpty
+              ? const _EmptyProjectLibrary()
+              : ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(18, 14, 18, 30),
+                  itemCount: projects.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 10),
+                  itemBuilder: (_, index) {
+                    final project = projects[index];
+                    final itemCount = project.items.length;
+                    return Card(
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 10,
+                        ),
+                        leading: const CircleAvatar(
+                          backgroundColor: Color(0xFFE9EEE9),
+                          foregroundColor: _forest,
+                          child: Icon(Icons.inventory_2_outlined),
+                        ),
+                        title: Text(
+                          project.name,
+                          style: const TextStyle(
+                            color: _ink,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        subtitle: Text(
+                          '$itemCount ${itemCount == 1 ? 'item' : 'items'} · ${project.clearedCount} cleared',
+                        ),
+                        onTap: () => _openProject(project),
+                        trailing: IconButton(
+                          tooltip: 'Delete ${project.name}',
+                          onPressed: () => _deleteProject(project),
+                          icon: const Icon(Icons.delete_outline),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ),
+    ),
+  );
+}
+
+class _EmptyProjectLibrary extends StatelessWidget {
+  const _EmptyProjectLibrary();
+
+  @override
+  Widget build(BuildContext context) => const Padding(
+    padding: EdgeInsets.all(32),
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(Icons.folder_open_outlined, size: 48, color: _forest),
+        SizedBox(height: 14),
+        Text(
+          'No saved projects yet',
+          style: TextStyle(
+            color: _ink,
+            fontSize: 22,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        SizedBox(height: 8),
+        Text(
+          'Start a scan, choose items to clear, and your project will stay on this device.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: _muted, height: 1.4),
+        ),
+      ],
     ),
   );
 }
@@ -417,6 +778,13 @@ class CaptureScreen extends StatelessWidget {
                 onPressed: () => Navigator.pop(context, false),
                 child: const Text('Cancel'),
               ),
+              TextButton(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const BetaTermsScreen()),
+                ),
+                child: const Text('Privacy & beta terms'),
+              ),
               FilledButton(
                 onPressed: () => Navigator.pop(context, true),
                 child: const Text('I understand'),
@@ -565,8 +933,9 @@ class _ViewfinderPainter extends CustomPainter {
 }
 
 class AnalyzingScreen extends StatefulWidget {
-  const AnalyzingScreen({super.key, this.imageBytes});
+  const AnalyzingScreen({super.key, this.imageBytes, this.analyze});
   final Uint8List? imageBytes;
+  final Future<ScanResult> Function(Uint8List)? analyze;
   @override
   State<AnalyzingScreen> createState() => _AnalyzingScreenState();
 }
@@ -590,23 +959,33 @@ class _AnalyzingScreenState extends State<AnalyzingScreen> {
       return;
     }
 
-    final api = ScanApi(baseUrl: _apiUrl);
-    if (!api.isConfigured) {
-      await Future<void>.delayed(const Duration(milliseconds: 650));
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) =>
-                LiveAnalysisSetupScreen(imageBytes: widget.imageBytes!),
-          ),
-        );
+    final Future<ScanResult> Function(Uint8List) analyze;
+    if (widget.analyze case final injected?) {
+      analyze = injected;
+    } else {
+      final api = ScanApi(baseUrl: _apiUrl, inviteCode: _betaInvite);
+      if (!api.isConfigured) {
+        await Future<void>.delayed(const Duration(milliseconds: 650));
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) =>
+                  LiveAnalysisSetupScreen(imageBytes: widget.imageBytes!),
+            ),
+          );
+        }
+        return;
       }
-      return;
+      analyze = api.analyze;
     }
 
+    final telemetry = TelemetryScope.read(context);
+    unawaited(telemetry.record(TelemetryEvent.scanStarted));
+
     try {
-      final result = await api.analyze(widget.imageBytes!);
+      final result = await analyze(widget.imageBytes!);
+      unawaited(telemetry.record(TelemetryEvent.scanSucceeded));
       if (mounted) {
         Navigator.pushReplacement(
           context,
@@ -617,6 +996,14 @@ class _AnalyzingScreenState extends State<AnalyzingScreen> {
         );
       }
     } on Object catch (error) {
+      unawaited(
+        telemetry.record(
+          TelemetryEvent.scanFailed,
+          failure: error is ScanApiException
+              ? TelemetryFailure.api
+              : TelemetryFailure.unknown,
+        ),
+      );
       if (mounted) {
         Navigator.pushReplacement(
           context,
@@ -795,19 +1182,10 @@ ScanResult _demoResult() => ScanResult(
       route: ItemRoute.sell,
       category: 'Cameras',
       reason: 'Strong demand. Verify model number before listing.',
-      listingTitle: 'Vintage film camera — model and condition to confirm',
-      listingDescription:
-          'Vintage film camera with a black body and attached lens. Exact maker, model, working condition, cosmetic wear, and included accessories must be confirmed before posting.',
-      searchQuery: 'vintage film camera with lens',
+      searchQuery: 'vintage 35mm film camera body',
       marketplace: Marketplace.ebay,
       marketplaceReason:
           'eBay reaches camera collectors and makes model-by-model comparisons easier.',
-      missingDetails: [
-        'Maker and exact model',
-        'Shutter, meter, and film-advance operation',
-        'Lens markings and glass condition',
-        'Battery and included accessories',
-      ],
       boxLeft: .08,
       boxTop: .14,
       boxWidth: .34,
@@ -910,12 +1288,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
               'Garage reset',
               style: TextStyle(fontWeight: FontWeight.w900),
             ),
-            actions: [
-              IconButton(
-                onPressed: () => _shareCard(context),
-                icon: const Icon(Icons.ios_share_rounded),
-              ),
-            ],
+            actions: const [],
           ),
           SliverToBoxAdapter(
             child: Center(
@@ -944,17 +1317,18 @@ class _ResultsScreenState extends State<ResultsScreen> {
                           const SizedBox(width: 10),
                           Expanded(
                             child: _MetricCard(
-                              icon: Icons.timer_outlined,
-                              value: '38 min',
-                              label: 'listing effort',
+                              icon: Icons.sell_outlined,
+                              value:
+                                  '\$${scan.lowTotal.toInt()}–\$${scan.highTotal.toInt()}',
+                              label: 'potential range',
                             ),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
                             child: _MetricCard(
-                              icon: Icons.chair_outlined,
-                              value: '12 ft²',
-                              label: 'space to clear',
+                              icon: Icons.checklist_rounded,
+                              value: '${queued.length}',
+                              label: 'selected to list',
                             ),
                           ),
                         ],
@@ -979,7 +1353,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        'Highest likely cash with the least hassle—first.',
+                        'Highest potential value with the least hassle—first.',
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       const SizedBox(height: 13),
@@ -1004,19 +1378,6 @@ class _ResultsScreenState extends State<ResultsScreen> {
                         label: Text('Start clearing ${queued.length} items'),
                       ),
                       const SizedBox(height: 11),
-                      OutlinedButton(
-                        onPressed: () => _showPaywall(context),
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(54),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                        ),
-                        child: const Text(
-                          'Unlock full project · 7 days free',
-                          style: TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                      ),
                       const SizedBox(height: 16),
                       const _TrustNote(),
                     ],
@@ -1057,6 +1418,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
       );
 
   Future<void> _showProjectCreated(BuildContext context) async {
+    final telemetry = TelemetryScope.of(context);
     var project = CleanoutProject.empty(
       id: 'project-${DateTime.now().millisecondsSinceEpoch}',
       name: 'Garage Reset',
@@ -1067,6 +1429,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
     final preferences = await SharedPreferences.getInstance();
     final store = ProjectStore(preferences);
     await store.save(project);
+    unawaited(telemetry.record(TelemetryEvent.projectCreated));
     if (context.mounted) {
       Navigator.push(
         context,
@@ -1076,127 +1439,6 @@ class _ResultsScreenState extends State<ResultsScreen> {
       );
     }
   }
-
-  void _showPaywall(BuildContext context) => showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: _ink,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-    ),
-    builder: (_) => SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Align(
-              alignment: Alignment.centerRight,
-              child: IconButton(
-                onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.close_rounded, color: Colors.white70),
-              ),
-            ),
-            const Icon(Icons.auto_awesome_rounded, color: _lime, size: 46),
-            const SizedBox(height: 12),
-            const Text(
-              'Clear the whole room.',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 31,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -1,
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Unlimited projects, complete item breakdowns, listing drafts, earnings, and household sharing.',
-              style: TextStyle(color: Colors.white70, height: 1.5),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 20),
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: const Color(0xFF263A2E),
-                border: Border.all(color: _lime, width: 1.5),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const Row(
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'YEARLY · BEST VALUE',
-                        style: TextStyle(
-                          color: _lime,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        r'$49.99/year',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 21,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Spacer(),
-                  Text(
-                    r'$0.96/week',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              r'Or $8.99 monthly · cancel anytime',
-              style: TextStyle(color: Colors.white54),
-            ),
-            const SizedBox(height: 18),
-            FilledButton(
-              onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Store billing connects before launch'),
-                ),
-              ),
-              style: FilledButton.styleFrom(
-                backgroundColor: _lime,
-                foregroundColor: _ink,
-              ),
-              child: const Text('Start 7-day free trial'),
-            ),
-            const SizedBox(height: 9),
-            const Text(
-              'Renews yearly after trial. Restore and cancellation will be available through your app-store account.',
-              style: TextStyle(
-                color: Colors.white38,
-                fontSize: 11,
-                height: 1.35,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
-
-  void _shareCard(BuildContext context) =>
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Progress card ready after your first completed item'),
-        ),
-      );
 }
 
 class _ItemDetailsSheet extends StatefulWidget {
@@ -1211,11 +1453,9 @@ class _ItemDetailsSheet extends StatefulWidget {
 
 class _ItemDetailsSheetState extends State<_ItemDetailsSheet> {
   late ClutterItem item;
-  late TextEditingController titleController;
-  late TextEditingController descriptionController;
   bool identifying = false;
   String? identityStatus;
-  String? questionnaireStatus;
+  String? correctionStatus;
 
   ListingGuide get guide => ListingGuide.forItem(item);
 
@@ -1223,15 +1463,6 @@ class _ItemDetailsSheetState extends State<_ItemDetailsSheet> {
   void initState() {
     super.initState();
     item = widget.item;
-    titleController = TextEditingController(text: guide.title);
-    descriptionController = TextEditingController(text: guide.description);
-  }
-
-  @override
-  void dispose() {
-    titleController.dispose();
-    descriptionController.dispose();
-    super.dispose();
   }
 
   Future<void> _open(Uri uri) async {
@@ -1241,20 +1472,6 @@ class _ItemDetailsSheetState extends State<_ItemDetailsSheet> {
         const SnackBar(content: Text('Could not open that marketplace.')),
       );
     }
-  }
-
-  void _copyDraft() {
-    final text =
-        '${titleController.text.trim()}\n\n${descriptionController.text.trim()}';
-    item = item.copyWith(
-      listingTitle: titleController.text.trim(),
-      listingDescription: descriptionController.text.trim(),
-    );
-    widget.onUpdated(item);
-    Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Editable listing draft copied')),
-    );
   }
 
   Future<void> _identifyFromLabel() async {
@@ -1296,12 +1513,11 @@ class _ItemDetailsSheetState extends State<_ItemDetailsSheet> {
     try {
       final result = await ScanApi(
         baseUrl: _apiUrl,
+        inviteCode: _betaInvite,
       ).identifyFromLabel(await photo.readAsBytes(), item);
       if (!mounted) return;
       setState(() {
         item = result.item;
-        titleController.text = item.listingTitle;
-        descriptionController.text = item.listingDescription;
         identifying = false;
         final identity = [
           result.manufacturer,
@@ -1323,30 +1539,24 @@ class _ItemDetailsSheetState extends State<_ItemDetailsSheet> {
     }
   }
 
-  Future<void> _openQuestionnaire() async {
-    final draftItem = item.copyWith(
-      listingTitle: titleController.text.trim(),
-      listingDescription: descriptionController.text.trim(),
-    );
-    final answers = await showModalBottomSheet<Map<String, String>>(
+  Future<void> _openCorrection() async {
+    final updated = await showModalBottomSheet<ClutterItem>(
       context: context,
       isScrollControlled: true,
       backgroundColor: _paper,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
-      builder: (_) => _ListingQuestionnaireSheet(item: draftItem),
+      builder: (_) => _ItemCorrectionSheet(item: item),
     );
-    if (answers == null || !mounted) return;
-    final updated = ListingQuestionnaire.apply(draftItem, answers);
+    if (updated == null || !mounted) return;
     setState(() {
       item = updated;
-      descriptionController.text = updated.listingDescription;
-      questionnaireStatus = updated.confirmedDetails.isEmpty
-          ? 'No seller details were added yet.'
-          : 'Listing refreshed with ${updated.confirmedDetails.length} seller-confirmed detail${updated.confirmedDetails.length == 1 ? '' : 's'}.';
+      correctionStatus =
+          'Item and potential range updated. Verify with marketplace results before posting.';
     });
     widget.onUpdated(updated);
+    unawaited(TelemetryScope.of(context).record(TelemetryEvent.itemCorrected));
   }
 
   @override
@@ -1433,6 +1643,16 @@ class _ItemDetailsSheetState extends State<_ItemDetailsSheet> {
               ),
             ),
           ],
+          if (correctionStatus != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              correctionStatus!,
+              style: const TextStyle(
+                color: _forest,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
           const SizedBox(height: 22),
           Text(
             'Price research',
@@ -1475,84 +1695,9 @@ class _ItemDetailsSheetState extends State<_ItemDetailsSheet> {
             'Search: ${guide.searchQuery}',
             style: const TextStyle(color: _muted, fontSize: 12),
           ),
-          const SizedBox(height: 24),
-          Text(
-            'Editable listing draft',
-            style: Theme.of(context).textTheme.headlineMedium,
-          ),
-          const SizedBox(height: 5),
-          const Text(
-            'AI started this from what is visible. Correct every unknown before posting.',
-          ),
           const SizedBox(height: 12),
-          FilledButton.tonalIcon(
-            onPressed: _openQuestionnaire,
-            icon: const Icon(Icons.fact_check_outlined),
-            label: const Text('Answer listing questions'),
-          ),
-          if (questionnaireStatus != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              questionnaireStatus!,
-              style: const TextStyle(
-                color: _forest,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-          const SizedBox(height: 12),
-          TextField(
-            controller: titleController,
-            maxLength: 80,
-            decoration: const InputDecoration(
-              labelText: 'Title',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: descriptionController,
-            minLines: 4,
-            maxLines: 8,
-            decoration: const InputDecoration(
-              labelText: 'Description',
-              alignLabelWithHint: true,
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Confirm before posting',
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 6),
-          ...guide.missingDetails.map(
-            (detail) => Padding(
-              padding: const EdgeInsets.only(bottom: 5),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(
-                    Icons.check_box_outline_blank_rounded,
-                    size: 18,
-                    color: _forest,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text(detail)),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 15),
-          FilledButton.icon(
-            onPressed: _copyDraft,
-            icon: const Icon(Icons.copy_all_rounded),
-            label: const Text('Copy edited listing'),
-          ),
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: _openCorrection,
             child: const Text('I need to correct this item'),
           ),
         ],
@@ -1561,89 +1706,95 @@ class _ItemDetailsSheetState extends State<_ItemDetailsSheet> {
   );
 }
 
-class _ListingQuestionnaireSheet extends StatefulWidget {
-  const _ListingQuestionnaireSheet({required this.item});
+class _ItemCorrectionSheet extends StatefulWidget {
+  const _ItemCorrectionSheet({required this.item});
 
   final ClutterItem item;
 
   @override
-  State<_ListingQuestionnaireSheet> createState() =>
-      _ListingQuestionnaireSheetState();
+  State<_ItemCorrectionSheet> createState() => _ItemCorrectionSheetState();
 }
 
-class _ListingQuestionnaireSheetState
-    extends State<_ListingQuestionnaireSheet> {
-  late final List<String> extraQuestions;
-  late final Map<String, TextEditingController> controllers;
+class _ItemCorrectionSheetState extends State<_ItemCorrectionSheet> {
+  late final TextEditingController nameController;
+  late final TextEditingController lowController;
+  late final TextEditingController typicalController;
+  late final TextEditingController highController;
+  String? error;
 
   @override
   void initState() {
     super.initState();
-    final previousExtra = widget.item.confirmedDetails.keys
-        .where((key) => key.startsWith('detail::'))
-        .map((key) => key.substring('detail::'.length));
-    extraQuestions = {
-      ...widget.item.missingDetails.where(
-        (detail) => !ListingQuestionnaire.usesCoreQuestion(detail),
-      ),
-      ...previousExtra,
-    }.toList();
-    final keys = [
-      ListingQuestionnaire.workingCondition,
-      ListingQuestionnaire.cosmeticWear,
-      ListingQuestionnaire.measurements,
-      ListingQuestionnaire.includedItems,
-      ListingQuestionnaire.otherNotes,
-      ...extraQuestions.map(ListingQuestionnaire.detailKey),
-    ];
-    controllers = {
-      for (final key in keys)
-        key: TextEditingController(
-          text: widget.item.confirmedDetails[key] ?? '',
-        ),
-    };
+    nameController = TextEditingController(text: widget.item.name);
+    lowController = TextEditingController(
+      text: widget.item.lowValue.toStringAsFixed(0),
+    );
+    typicalController = TextEditingController(
+      text: widget.item.typicalValue.toStringAsFixed(0),
+    );
+    highController = TextEditingController(
+      text: widget.item.highValue.toStringAsFixed(0),
+    );
   }
 
   @override
   void dispose() {
-    for (final controller in controllers.values) {
-      controller.dispose();
-    }
+    nameController.dispose();
+    lowController.dispose();
+    typicalController.dispose();
+    highController.dispose();
     super.dispose();
   }
 
-  Widget _field(String key, String label, String hint, {int maxLines = 2}) =>
-      Padding(
-        padding: const EdgeInsets.only(bottom: 13),
-        child: TextField(
-          controller: controllers[key],
-          textCapitalization: TextCapitalization.sentences,
-          minLines: 1,
-          maxLines: maxLines,
-          decoration: InputDecoration(
-            labelText: label,
-            hintText: hint,
-            alignLabelWithHint: true,
-            border: const OutlineInputBorder(),
-          ),
+  void _save() {
+    final name = nameController.text.trim();
+    final low = double.tryParse(lowController.text.trim());
+    final typical = double.tryParse(typicalController.text.trim());
+    final high = double.tryParse(highController.text.trim());
+    if (name.isEmpty) {
+      setState(() => error = 'Enter the item name you verified.');
+      return;
+    }
+    if (low == null ||
+        typical == null ||
+        high == null ||
+        low < 0 ||
+        typical < low ||
+        high < typical) {
+      setState(
+        () => error = 'Enter non-negative values from low to typical to high.',
+      );
+      return;
+    }
+    Navigator.pop(
+      context,
+      widget.item.copyWith(
+        name: name,
+        lowValue: low,
+        typicalValue: typical,
+        highValue: high,
+      ),
+    );
+  }
+
+  Widget _valueField(TextEditingController controller, String label) =>
+      TextField(
+        controller: controller,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        decoration: InputDecoration(
+          labelText: label,
+          prefixText: r'$ ',
+          border: const OutlineInputBorder(),
         ),
       );
-
-  Map<String, String> get answers => {
-    for (final entry in controllers.entries) entry.key: entry.value.text,
-  };
 
   @override
   Widget build(BuildContext context) => Padding(
     padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-    child: DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: .92,
-      minChildSize: .62,
-      maxChildSize: .97,
-      builder: (_, scrollController) => SingleChildScrollView(
-        controller: scrollController,
-        padding: const EdgeInsets.fromLTRB(22, 12, 22, 30),
+    child: SafeArea(
+      top: false,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(22, 16, 22, 28),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -1659,64 +1810,44 @@ class _ListingQuestionnaireSheetState
             ),
             const SizedBox(height: 20),
             Text(
-              'Confirm the listing details',
+              'Correct this item',
               style: Theme.of(context).textTheme.headlineMedium,
             ),
             const SizedBox(height: 8),
             const Text(
-              'Only enter facts you personally checked. Blank answers stay unknown and will not be added to the listing.',
+              'Use details you verified. These are potential selling-value estimates, not completed sale prices.',
             ),
             const SizedBox(height: 18),
-            _field(
-              ListingQuestionnaire.workingCondition,
-              'Working condition',
-              'Example: tested and works, partially works, untested',
-            ),
-            _field(
-              ListingQuestionnaire.cosmeticWear,
-              'Cosmetic wear or damage',
-              'Describe scratches, chips, stains, cracks, or missing pieces',
-              maxLines: 3,
-            ),
-            _field(
-              ListingQuestionnaire.measurements,
-              'Measurements',
-              'Include units, such as 18 in wide × 12 in deep',
-            ),
-            _field(
-              ListingQuestionnaire.includedItems,
-              'Included items and accessories',
-              'List only what will be sold with the item',
-              maxLines: 3,
-            ),
-            if (extraQuestions.isNotEmpty) ...[
-              const SizedBox(height: 2),
-              Text(
-                'Item-specific checks',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+            TextField(
+              controller: nameController,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(
+                labelText: 'Item name',
+                border: OutlineInputBorder(),
               ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Potential selling range',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 8),
+            _valueField(lowController, 'Low potential value'),
+            const SizedBox(height: 10),
+            _valueField(typicalController, 'Typical potential value'),
+            const SizedBox(height: 10),
+            _valueField(highController, 'High potential value'),
+            if (error != null) ...[
               const SizedBox(height: 10),
-              ...extraQuestions.map(
-                (question) => _field(
-                  ListingQuestionnaire.detailKey(question),
-                  question,
-                  'Enter the detail only if you verified it',
-                ),
-              ),
+              Text(error!, style: const TextStyle(color: Colors.redAccent)),
             ],
-            _field(
-              ListingQuestionnaire.otherNotes,
-              'Other seller notes',
-              'Optional factual details a buyer should know',
-              maxLines: 3,
-            ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 18),
             FilledButton.icon(
-              onPressed: () => Navigator.pop(context, answers),
+              onPressed: _save,
               icon: const Icon(Icons.check_rounded),
-              label: const Text('Update listing draft'),
+              label: const Text('Save correction'),
             ),
             TextButton(
               onPressed: () => Navigator.pop(context),
@@ -1813,7 +1944,7 @@ class _ResultHero extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Cash hiding here',
+                'Potential resale value',
                 style: TextStyle(
                   color: Colors.white70,
                   fontWeight: FontWeight.w700,
@@ -2160,7 +2291,7 @@ class _TrustNote extends StatelessWidget {
       SizedBox(width: 9),
       Expanded(
         child: Text(
-          'Your room may contain private details. Production image analysis will use short retention, deletion controls, and no model training without explicit permission.',
+          'Your room may contain private details. Avoid faces, addresses, mail, medication, keys, documents, and other sensitive belongings. Live photos are sent through ClutterCash to Google Gemini only after you accept the upload notice.',
           style: TextStyle(color: _muted, fontSize: 11, height: 1.45),
         ),
       ),
@@ -2181,16 +2312,12 @@ class _ProjectBoardScreenState extends State<ProjectBoardScreen> {
   late CleanoutProject project = widget.project;
 
   Future<void> _change(ClutterItem item, ItemStatus status) async {
+    final telemetry = TelemetryScope.of(context);
     setState(() {
-      project = status == ItemStatus.sold
-          ? project.recordSale(
-              item.id,
-              soldPrice: item.typicalValue,
-              fees: item.typicalValue * .10,
-            )
-          : project.updateStatus(item.id, status);
+      project = project.updateStatus(item.id, status);
     });
     await widget.store?.save(project);
+    unawaited(telemetry.record(TelemetryEvent.itemStatusUpdated));
   }
 
   @override
@@ -2201,18 +2328,7 @@ class _ProjectBoardScreenState extends State<ProjectBoardScreen> {
         project.name,
         style: const TextStyle(fontWeight: FontWeight.w900),
       ),
-      actions: [
-        IconButton(
-          onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Progress card will include your cleared space and real earnings.',
-              ),
-            ),
-          ),
-          icon: const Icon(Icons.ios_share_rounded),
-        ),
-      ],
+      actions: const [],
     ),
     body: SafeArea(
       child: Center(
@@ -2230,10 +2346,10 @@ class _ProjectBoardScreenState extends State<ProjectBoardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const _EyebrowLight('CASH SPRINT'),
+                    const _EyebrowLight('CLEARING PROGRESS'),
                     const SizedBox(height: 7),
                     Text(
-                      '\$${project.realizedEarnings.toStringAsFixed(0)} earned',
+                      '${project.clearedCount} ${project.clearedCount == 1 ? 'item' : 'items'} cleared',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 34,
@@ -2269,7 +2385,7 @@ class _ProjectBoardScreenState extends State<ProjectBoardScreen> {
               ),
               const SizedBox(height: 6),
               Text(
-                'Update each item as you clear it. Earnings use the sale price minus estimated fees.',
+                'Mark an item after it leaves your space. Potential values are estimates, not completed sales.',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 14),

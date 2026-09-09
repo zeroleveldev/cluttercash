@@ -2,12 +2,10 @@ import 'item.dart';
 
 class ListingGuide {
   const ListingGuide({
-    required this.title,
-    required this.description,
     required this.searchQuery,
     required this.recommendedMarketplace,
     required this.marketplaceReason,
-    required this.missingDetails,
+
     required this.ebayActive,
     required this.ebaySold,
     required this.facebookMarketplace,
@@ -23,28 +21,13 @@ class ListingGuide {
             item.marketplaceReason.trim().isEmpty
         ? _fallbackMarketplace(item)
         : item.marketplace;
-    final missing = item.missingDetails.isNotEmpty
-        ? item.missingDetails
-        : const [
-            'Brand and exact model',
-            'Working condition',
-            'Damage or wear',
-            'Included accessories',
-          ];
-
     return ListingGuide(
-      title: item.listingTitle.trim().isNotEmpty
-          ? item.listingTitle.trim()
-          : '${item.name} — details to confirm',
-      description: item.listingDescription.trim().isNotEmpty
-          ? item.listingDescription.trim()
-          : '${item.name}. Review the photos and confirm the exact model, condition, damage, and included accessories before posting.',
       searchQuery: query,
       recommendedMarketplace: marketplace,
       marketplaceReason: item.marketplaceReason.trim().isNotEmpty
           ? item.marketplaceReason.trim()
           : _fallbackReason(marketplace),
-      missingDetails: List.unmodifiable(missing),
+
       ebayActive: Uri.https('www.ebay.com', '/sch/i.html', {'_nkw': query}),
       ebaySold: Uri.https('www.ebay.com', '/sch/i.html', {
         '_nkw': query,
@@ -60,12 +43,10 @@ class ListingGuide {
     );
   }
 
-  final String title;
-  final String description;
   final String searchQuery;
   final Marketplace recommendedMarketplace;
   final String marketplaceReason;
-  final List<String> missingDetails;
+
   final Uri ebayActive;
   final Uri ebaySold;
   final Uri facebookMarketplace;
@@ -75,7 +56,6 @@ class ListingGuide {
       'Active listings show asking prices, not proven value. Completed-sale results are stronger evidence, but verify that the model, condition, accessories, and shipping terms truly match.';
 
   String get evidenceDisclaimer => _evidenceDisclaimer;
-  String get copyText => '$title\n\n$description';
 
   static Marketplace _fallbackMarketplace(ClutterItem item) {
     if (item.route == ItemRoute.donate || item.typicalValue <= 10) {

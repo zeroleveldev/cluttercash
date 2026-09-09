@@ -13,23 +13,20 @@ Audience: overwhelmed homeowners, movers, and families clearing garages/closets�
 3. Photo captured
 4. Useful objects detected (target: at least 5)
 5. Identity correction completed if needed
-6. At least 3 items added to an action queue
-7. Listing draft copied
-8. Item marked listed
-9. Outcome recorded (sold/donated/recycled)
-10. Paywall viewed and trial started
+6. At least one item marked cleared after it leaves the space
+7. Free-beta feedback/support request
+
+### Measurement boundary
+
+The invited build records only allow-listed, metadata-free event names for scan start/success/failure, local project creation/reopen, item correction/status update, and coarse app-crash categories. Use aggregate Worker-log counts to identify major drop-offs and reliability problems. Do not attach photos, item/project names, values, invite hashes, device/account IDs, raw errors, stack traces, or arbitrary properties; do not build per-user profiles, session replay, advertising analytics, or an analytics dashboard for this beta. Marketplace-link clicks and support requests are not instrumented in the current minimum telemetry slice.
 
 ## Validation gate
 
-Run 30–50 authorized household cleanouts. Continue only if people can complete the workflow and return to record outcomes. A polished app, waitlist, or social views alone do not validate willingness to pay.
+Run 30–50 authorized household cleanouts. Continue only if people can complete the workflow and use it to decide what to list or clear. A polished app, waitlist, or social views alone do not validate usefulness or willingness to pay.
 
-## Pricing hypothesis
+## Pricing
 
-- Free: one project, three complete item analyses
-- Plus: $8.99/month or $49.99/year after an honest seven-day trial
-- Later experiment: non-expiring cleanout scan pack for subscription-resistant users
-
-No fake countdowns, hidden terms, or artificial urgency. Show renewal timing, limits, restore, and cancellation clearly.
+Pricing is intentionally undecided. The invited beta is free: no subscription, scan pack, payment, trial, or in-app purchase is offered. Consider paid plans or scan packs only after the beta demonstrates repeat usefulness and the required billing, cancellation, support, and disclosure controls are ready.
 
 ## Creative hooks
 
@@ -37,13 +34,13 @@ No fake countdowns, hidden terms, or artificial urgency. Show renewal timing, li
 - “The mess wasn’t trash. It was $438.”
 - “Sell these three. Donate the rest. Clear the room.”
 - “This old camera was hiding in plain sight.”
-- Before photo → highlighted objects → range reveal → empty shelf → realized cash
+- Before photo → highlighted objects → potential-value range → empty shelf
 
 ## Kill signals
 
 - Fewer than five useful candidates in ordinary wide photos
 - Identity corrections feel harder than manual eBay/Google Lens search
 - Users inspect estimates but do not build an action queue
-- Users create drafts but do not list or clear items
-- Inference and acquisition costs cannot fit the annual plan
+- Users research items but do not list or clear them
+- Inference and acquisition costs make a future paid model unsustainable
 - Support load requires marketplace integrations before users will pay

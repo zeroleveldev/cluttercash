@@ -29,24 +29,6 @@ class CleanoutProject {
         .toList(),
   );
 
-  CleanoutProject recordSale(
-    String itemId, {
-    required double soldPrice,
-    double fees = 0,
-  }) => _with(
-    items
-        .map(
-          (item) => item.id == itemId
-              ? item.copyWith(
-                  status: ItemStatus.sold,
-                  soldPrice: soldPrice,
-                  fees: fees,
-                )
-              : item,
-        )
-        .toList(),
-  );
-
   CleanoutProject correctItem(
     String itemId, {
     String? name,
@@ -63,10 +45,6 @@ class CleanoutProject {
 
   ClutterItem itemById(String itemId) =>
       items.firstWhere((item) => item.id == itemId);
-
-  double get realizedEarnings => items
-      .where((item) => item.status == ItemStatus.sold)
-      .fold(0, (sum, item) => sum + (item.soldPrice ?? 0) - item.fees);
 
   int get clearedCount => items
       .where(

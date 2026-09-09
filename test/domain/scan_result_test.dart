@@ -36,7 +36,6 @@ void main() {
     expect(scan.typicalTotal, 210);
     expect(scan.highTotal, 288);
     expect(scan.bigTicketItems().single.name, 'Vintage camera');
-    expect(scan.items.first.expectedNet, 161.5);
   });
 
   test('big ticket threshold is configurable and inclusive', () {

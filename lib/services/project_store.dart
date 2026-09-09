@@ -66,17 +66,12 @@ class ProjectStore {
     'effort': item.effort.name,
     'route': item.route.name,
     'status': item.status.name,
-    'soldPrice': item.soldPrice,
-    'fees': item.fees,
     'category': item.category,
     'reason': item.reason,
-    'listingTitle': item.listingTitle,
-    'listingDescription': item.listingDescription,
     'searchQuery': item.searchQuery,
     'marketplace': item.marketplace.name,
     'marketplaceReason': item.marketplaceReason,
-    'missingDetails': item.missingDetails,
-    'confirmedDetails': item.confirmedDetails,
+
     'boxLeft': item.boxLeft,
     'boxTop': item.boxTop,
     'boxWidth': item.boxWidth,
@@ -93,12 +88,8 @@ class ProjectStore {
     effort: _enum(SaleEffort.values, value['effort'], SaleEffort.medium),
     route: _enum(ItemRoute.values, value['route'], ItemRoute.keep),
     status: _enum(ItemStatus.values, value['status'], ItemStatus.unreviewed),
-    soldPrice: value['soldPrice'] == null ? null : _number(value['soldPrice']),
-    fees: _number(value['fees']),
     category: '${value['category'] ?? 'Other'}',
     reason: '${value['reason'] ?? ''}',
-    listingTitle: '${value['listingTitle'] ?? ''}',
-    listingDescription: '${value['listingDescription'] ?? ''}',
     searchQuery: '${value['searchQuery'] ?? ''}',
     marketplace: _enum(
       Marketplace.values,
@@ -106,16 +97,7 @@ class ProjectStore {
       Marketplace.localPickup,
     ),
     marketplaceReason: '${value['marketplaceReason'] ?? ''}',
-    missingDetails: value['missingDetails'] is List
-        ? (value['missingDetails'] as List)
-              .map((detail) => detail.toString())
-              .toList()
-        : const [],
-    confirmedDetails: value['confirmedDetails'] is Map
-        ? (value['confirmedDetails'] as Map).map(
-            (key, detail) => MapEntry(key.toString(), detail.toString()),
-          )
-        : const {},
+
     boxLeft: _number(value['boxLeft']),
     boxTop: _number(value['boxTop']),
     boxWidth: _number(value['boxWidth']),

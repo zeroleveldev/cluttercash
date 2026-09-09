@@ -5,3 +5,14 @@ compatibility_date = "2026-09-01"
 [vars]
 GEMINI_MODEL = "gemini-3.5-flash-lite"
 ALLOWED_ORIGIN = "https://zeroleveldev.github.io"
+BETA_WEEKLY_REQUEST_LIMIT = "3"
+BETA_DAILY_BUDGET_MICRO_USD = "500000"
+GEMINI_MAX_REQUEST_COST_MICRO_USD = "10000"
+
+[[durable_objects.bindings]]
+name = "BETA_USAGE_LIMITER"
+class_name = "BetaUsageLimiter"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["BetaUsageLimiter"]

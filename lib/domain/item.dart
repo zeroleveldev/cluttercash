@@ -26,17 +26,12 @@ class ClutterItem {
     required this.effort,
     required this.route,
     this.status = ItemStatus.unreviewed,
-    this.soldPrice,
-    this.fees = 0,
     this.category = 'Home',
     this.reason = '',
-    this.listingTitle = '',
-    this.listingDescription = '',
     this.searchQuery = '',
     this.marketplace = Marketplace.localPickup,
     this.marketplaceReason = '',
-    this.missingDetails = const [],
-    this.confirmedDetails = const {},
+
     this.boxLeft = .12,
     this.boxTop = .12,
     this.boxWidth = .3,
@@ -52,66 +47,43 @@ class ClutterItem {
   final SaleEffort effort;
   final ItemRoute route;
   final ItemStatus status;
-  final double? soldPrice;
-  final double fees;
   final String category;
   final String reason;
-  final String listingTitle;
-  final String listingDescription;
   final String searchQuery;
   final Marketplace marketplace;
   final String marketplaceReason;
-  final List<String> missingDetails;
-  final Map<String, String> confirmedDetails;
+
   final double boxLeft;
   final double boxTop;
   final double boxWidth;
   final double boxHeight;
 
-  double get expectedNet {
-    final rate = switch (effort) {
-      SaleEffort.low => .90,
-      SaleEffort.medium => .85,
-      SaleEffort.high => .75,
-    };
-    return typicalValue * rate;
-  }
-
   ClutterItem copyWith({
     String? name,
+    double? lowValue,
     double? typicalValue,
+    double? highValue,
     Confidence? confidence,
     ItemStatus? status,
-    double? soldPrice,
-    double? fees,
-    String? listingTitle,
-    String? listingDescription,
     String? searchQuery,
     Marketplace? marketplace,
     String? marketplaceReason,
-    List<String>? missingDetails,
-    Map<String, String>? confirmedDetails,
   }) => ClutterItem(
     id: id,
     name: name ?? this.name,
-    lowValue: lowValue,
+    lowValue: lowValue ?? this.lowValue,
     typicalValue: typicalValue ?? this.typicalValue,
-    highValue: highValue,
+    highValue: highValue ?? this.highValue,
     confidence: confidence ?? this.confidence,
     effort: effort,
     route: route,
     status: status ?? this.status,
-    soldPrice: soldPrice ?? this.soldPrice,
-    fees: fees ?? this.fees,
     category: category,
     reason: reason,
-    listingTitle: listingTitle ?? this.listingTitle,
-    listingDescription: listingDescription ?? this.listingDescription,
     searchQuery: searchQuery ?? this.searchQuery,
     marketplace: marketplace ?? this.marketplace,
     marketplaceReason: marketplaceReason ?? this.marketplaceReason,
-    missingDetails: missingDetails ?? this.missingDetails,
-    confirmedDetails: confirmedDetails ?? this.confirmedDetails,
+
     boxLeft: boxLeft,
     boxTop: boxTop,
     boxWidth: boxWidth,

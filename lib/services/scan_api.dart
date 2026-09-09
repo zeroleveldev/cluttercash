@@ -5,16 +5,18 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 
 import '../domain/item.dart';
-import '../domain/listing_questionnaire.dart';
+
 import '../domain/scan_result.dart';
 
 class ScanApi {
-  const ScanApi({required this.baseUrl, this._client});
+  const ScanApi({required this.baseUrl, this.inviteCode = '', this._client});
 
   final String baseUrl;
+  final String inviteCode;
   final http.Client? _client;
 
-  bool get isConfigured => baseUrl.trim().isNotEmpty;
+  bool get isConfigured =>
+      baseUrl.trim().isNotEmpty && inviteCode.trim().isNotEmpty;
 
   Future<ScanResult> analyze(
     Uint8List bytes, {
@@ -23,6 +25,7 @@ class ScanApi {
     if (!isConfigured) {
       throw const ScanApiException('Live analysis is not configured.');
     }
+    final image = _imageFormat(bytes);
     final client = _client ?? http.Client();
     try {
       final request =
@@ -30,13 +33,14 @@ class ScanApi {
               'POST',
               Uri.parse('${baseUrl.replaceAll(RegExp(r'/$'), '')}/v1/scans'),
             )
+            ..headers['X-ClutterCash-Invite'] = inviteCode.trim()
             ..fields['betaConsent'] = 'true'
             ..files.add(
               http.MultipartFile.fromBytes(
                 'image',
                 bytes,
-                filename: 'room.jpg',
-                contentType: MediaType('image', 'jpeg'),
+                filename: 'room.${image.extension}',
+                contentType: image.contentType,
               ),
             );
       final streamed = await client
@@ -61,6 +65,7 @@ class ScanApi {
     if (!isConfigured) {
       throw const ScanApiException('Live analysis is not configured.');
     }
+    final image = _imageFormat(bytes);
     final client = _client ?? http.Client();
     try {
       final request =
@@ -70,6 +75,7 @@ class ScanApi {
                 '${baseUrl.replaceAll(RegExp(r'/$'), '')}/v1/items/identify',
               ),
             )
+            ..headers['X-ClutterCash-Invite'] = inviteCode.trim()
             ..fields['betaConsent'] = 'true'
             ..fields['itemName'] = item.name
             ..fields['category'] = item.category
@@ -77,8 +83,8 @@ class ScanApi {
               http.MultipartFile.fromBytes(
                 'image',
                 bytes,
-                filename: 'model-label.jpg',
-                contentType: MediaType('image', 'jpeg'),
+                filename: 'model-label.${image.extension}',
+                contentType: image.contentType,
               ),
             );
       final streamed = await client
@@ -113,28 +119,14 @@ class ScanApi {
       );
     }
     final exactName = (decoded['exactName'] as String).trim();
-    final missingDetails = decoded['missingDetails'] is List
-        ? (decoded['missingDetails'] as List)
-              .map((detail) => detail.toString())
-              .where((detail) => detail.trim().isNotEmpty)
-              .take(6)
-              .toList()
-        : item.missingDetails;
-    var updated = item.copyWith(
+    final updated = item.copyWith(
       name: exactName.isEmpty ? item.name : exactName,
       confidence: _confidence(decoded['confidence']),
-      listingTitle: '${decoded['listingTitle'] ?? item.listingTitle}',
-      listingDescription:
-          '${decoded['listingDescription'] ?? item.listingDescription}',
       searchQuery: '${decoded['searchQuery'] ?? item.searchQuery}',
       marketplace: _marketplace(decoded['marketplace']),
       marketplaceReason:
           '${decoded['marketplaceReason'] ?? item.marketplaceReason}',
-      missingDetails: missingDetails,
     );
-    if (item.confirmedDetails.isNotEmpty) {
-      updated = ListingQuestionnaire.apply(updated, item.confirmedDetails);
-    }
     return ItemIdentification(
       item: updated,
       manufacturer: '${decoded['manufacturer'] ?? ''}',
@@ -178,18 +170,10 @@ class ScanApi {
           effort: _effort(raw['effort']),
           route: _route(raw['route']),
           reason: '${raw['reason'] ?? ''}',
-          listingTitle: '${raw['listingTitle'] ?? ''}',
-          listingDescription: '${raw['listingDescription'] ?? ''}',
           searchQuery: '${raw['searchQuery'] ?? ''}',
           marketplace: _marketplace(raw['marketplace']),
           marketplaceReason: '${raw['marketplaceReason'] ?? ''}',
-          missingDetails: raw['missingDetails'] is List
-              ? (raw['missingDetails'] as List)
-                    .map((detail) => detail.toString())
-                    .where((detail) => detail.trim().isNotEmpty)
-                    .take(6)
-                    .toList()
-              : const [],
+
           boxLeft: _number(box['left']),
           boxTop: _number(box['top']),
           boxWidth: _number(box['width']),
@@ -226,6 +210,48 @@ class ScanApi {
       return null;
     }
   }
+
+  static _ImageFormat _imageFormat(Uint8List bytes) {
+    if (bytes.length >= 3 &&
+        bytes[0] == 0xff &&
+        bytes[1] == 0xd8 &&
+        bytes[2] == 0xff) {
+      return const _ImageFormat('jpg', 'jpeg');
+    }
+    if (bytes.length >= 8 &&
+        bytes[0] == 0x89 &&
+        bytes[1] == 0x50 &&
+        bytes[2] == 0x4e &&
+        bytes[3] == 0x47 &&
+        bytes[4] == 0x0d &&
+        bytes[5] == 0x0a &&
+        bytes[6] == 0x1a &&
+        bytes[7] == 0x0a) {
+      return const _ImageFormat('png', 'png');
+    }
+    if (bytes.length >= 12 &&
+        bytes[0] == 0x52 &&
+        bytes[1] == 0x49 &&
+        bytes[2] == 0x46 &&
+        bytes[3] == 0x46 &&
+        bytes[8] == 0x57 &&
+        bytes[9] == 0x45 &&
+        bytes[10] == 0x42 &&
+        bytes[11] == 0x50) {
+      return const _ImageFormat('webp', 'webp');
+    }
+    throw const ScanApiException(
+      'Choose a JPEG, PNG, or WebP image and try again.',
+    );
+  }
+}
+
+class _ImageFormat {
+  const _ImageFormat(this.extension, this.subtype);
+
+  final String extension;
+  final String subtype;
+  MediaType get contentType => MediaType('image', subtype);
 }
 
 class ScanApiException implements Exception {
