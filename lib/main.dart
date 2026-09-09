@@ -36,6 +36,18 @@ const _muted = Color(0xFF637067);
 const _orange = Color(0xFFFFA655);
 const _apiUrl = String.fromEnvironment('CLUTTERCASH_API_URL');
 const _betaInvite = String.fromEnvironment('CLUTTERCASH_BETA_INVITE');
+const _betaInviteStorageKey = 'cluttercash.betaInviteCode';
+
+Future<String> _activeInviteCode() async {
+  if (_betaInvite.trim().isNotEmpty) return _betaInvite.trim();
+  return (await SharedPreferences.getInstance())
+          .getString(_betaInviteStorageKey)
+          ?.trim() ??
+      '';
+}
+
+Future<ScanApi> _activeScanApi() async =>
+    ScanApi(baseUrl: _apiUrl, inviteCode: await _activeInviteCode());
 
 class ClutterCashApp extends StatelessWidget {
   const ClutterCashApp({
@@ -963,7 +975,8 @@ class _AnalyzingScreenState extends State<AnalyzingScreen> {
     if (widget.analyze case final injected?) {
       analyze = injected;
     } else {
-      final api = ScanApi(baseUrl: _apiUrl, inviteCode: _betaInvite);
+      final api = await _activeScanApi();
+      if (!mounted) return;
       if (!api.isConfigured) {
         await Future<void>.delayed(const Duration(milliseconds: 650));
         if (mounted) {
@@ -1070,6 +1083,100 @@ class _AnalyzingScreenState extends State<AnalyzingScreen> {
   );
 }
 
+class BetaInviteCodeScreen extends StatefulWidget {
+  const BetaInviteCodeScreen({super.key, this.onSaved});
+
+  final VoidCallback? onSaved;
+
+  @override
+  State<BetaInviteCodeScreen> createState() => _BetaInviteCodeScreenState();
+}
+
+class _BetaInviteCodeScreenState extends State<BetaInviteCodeScreen> {
+  final controller = TextEditingController();
+  String? message;
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final code = controller.text.trim();
+    if (code.length < 8) {
+      setState(() => message = 'Enter the beta code you received.');
+      return;
+    }
+    await (await SharedPreferences.getInstance()).setString(
+      _betaInviteStorageKey,
+      code,
+    );
+    if (!mounted) return;
+    setState(() => message = 'Beta code saved on this device');
+    widget.onSaved?.call();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(backgroundColor: _cream, leading: const BackButton()),
+    body: SafeArea(
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const _Eyebrow('INVITED BETA'),
+                const SizedBox(height: 10),
+                Text(
+                  'Enter your beta code',
+                  style: Theme.of(context).textTheme.headlineLarge,
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Your code allows a small number of live analyses. It is saved only on this device and is not your Gemini or account password.',
+                  style: TextStyle(color: _muted, height: 1.4),
+                ),
+                const SizedBox(height: 24),
+                TextField(
+                  controller: controller,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  textCapitalization: TextCapitalization.none,
+                  decoration: const InputDecoration(
+                    labelText: 'Beta invite code',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                FilledButton(
+                  onPressed: _save,
+                  child: const Text('Save beta code'),
+                ),
+                if (message != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    message!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: _forest,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 class LiveAnalysisSetupScreen extends StatelessWidget {
   const LiveAnalysisSetupScreen({
     super.key,
@@ -1134,6 +1241,16 @@ class LiveAnalysisSetupScreen extends StatelessWidget {
                 ],
                 const SizedBox(height: 24),
                 FilledButton(
+                  onPressed: () => Navigator.push<void>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const BetaInviteCodeScreen(),
+                    ),
+                  ),
+                  child: const Text('Enter beta invite code'),
+                ),
+                const SizedBox(height: 9),
+                OutlinedButton(
                   onPressed: () => Navigator.pushReplacement(
                     context,
                     MaterialPageRoute(
@@ -1511,10 +1628,10 @@ class _ItemDetailsSheetState extends State<_ItemDetailsSheet> {
       identityStatus = null;
     });
     try {
-      final result = await ScanApi(
-        baseUrl: _apiUrl,
-        inviteCode: _betaInvite,
-      ).identifyFromLabel(await photo.readAsBytes(), item);
+      final result = await (await _activeScanApi()).identifyFromLabel(
+        await photo.readAsBytes(),
+        item,
+      );
       if (!mounted) return;
       setState(() {
         item = result.item;

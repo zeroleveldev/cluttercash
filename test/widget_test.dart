@@ -27,6 +27,26 @@ class _RecordingTelemetry implements TelemetryReporter {
 }
 
 void main() {
+  testWidgets(
+    'beta invite entry stores a local code without showing it later',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      await tester.pumpWidget(const MaterialApp(home: BetaInviteCodeScreen()));
+
+      await tester.enterText(find.byType(TextField), 'tester-invite-code');
+      await tester.tap(find.text('Save beta code'));
+      await tester.pumpAndSettle();
+
+      expect(
+        await SharedPreferences.getInstance().then(
+          (preferences) => preferences.getString('cluttercash.betaInviteCode'),
+        ),
+        'tester-invite-code',
+      );
+      expect(find.text('Beta code saved on this device'), findsOneWidget);
+    },
+  );
+
   testWidgets('live scan success replaces loading with the real result', (
     tester,
   ) async {
