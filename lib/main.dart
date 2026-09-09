@@ -1244,7 +1244,14 @@ class LiveAnalysisSetupScreen extends StatelessWidget {
                   onPressed: () => Navigator.push<void>(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => const BetaInviteCodeScreen(),
+                      builder: (_) => BetaInviteCodeScreen(
+                        onSaved: () => Navigator.of(context).pushReplacement(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                AnalyzingScreen(imageBytes: imageBytes),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                   child: const Text('Enter beta invite code'),
