@@ -37,6 +37,7 @@ const _orange = Color(0xFFFFA655);
 const _apiUrl = String.fromEnvironment('CLUTTERCASH_API_URL');
 const _betaInvite = String.fromEnvironment('CLUTTERCASH_BETA_INVITE');
 const _betaInviteStorageKey = 'cluttercash.betaInviteCode';
+const _supportEmail = 'cluttercash.help@gmail.com';
 
 Future<String> _activeInviteCode() async {
   if (_betaInvite.trim().isNotEmpty) return _betaInvite.trim();
@@ -1157,6 +1158,15 @@ class _BetaInviteCodeScreenState extends State<BetaInviteCodeScreen> {
                   onPressed: _save,
                   child: const Text('Save beta code'),
                 ),
+                TextButton(
+                  onPressed: () => Navigator.push<void>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const BetaInviteRequestScreen(),
+                    ),
+                  ),
+                  child: const Text('Request beta access'),
+                ),
                 if (message != null) ...[
                   const SizedBox(height: 12),
                   Text(
@@ -1168,6 +1178,123 @@ class _BetaInviteCodeScreenState extends State<BetaInviteCodeScreen> {
                     ),
                   ),
                 ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class BetaInviteRequestScreen extends StatefulWidget {
+  const BetaInviteRequestScreen({super.key});
+
+  @override
+  State<BetaInviteRequestScreen> createState() =>
+      _BetaInviteRequestScreenState();
+}
+
+class _BetaInviteRequestScreenState extends State<BetaInviteRequestScreen> {
+  final name = TextEditingController();
+  final device = TextEditingController();
+
+  @override
+  void dispose() {
+    name.dispose();
+    device.dispose();
+    super.dispose();
+  }
+
+  Future<void> _draftRequest() async {
+    final request = Uri(
+      scheme: 'mailto',
+      path: _supportEmail,
+      queryParameters: {
+        'subject': 'ClutterCash beta invite request',
+        'body':
+            'Hi! I would like a ClutterCash beta invite.\n\n'
+            'Name: ${name.text.trim()}\n'
+            'Device: ${device.text.trim()}\n\n'
+            'I understand this is a limited free beta and I will not share my invite code.',
+      },
+    );
+    var opened = false;
+    try {
+      opened = await launchUrl(request, mode: LaunchMode.platformDefault);
+    } on Object {
+      opened = false;
+    }
+    if (!opened && mounted) {
+      await Clipboard.setData(
+        ClipboardData(
+          text: 'ClutterCash beta invite request — email $_supportEmail',
+        ),
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Support email copied to your clipboard.'),
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(backgroundColor: _cream, leading: const BackButton()),
+    body: SafeArea(
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const _Eyebrow('LIMITED FREE BETA'),
+                const SizedBox(height: 10),
+                Text(
+                  'Join the invited beta',
+                  style: Theme.of(context).textTheme.headlineLarge,
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Request access and we will review it before issuing a device-specific code. Invite codes have limited live AI analyses and cannot be shared.',
+                  style: TextStyle(color: _muted, height: 1.4),
+                ),
+                const SizedBox(height: 24),
+                TextField(
+                  controller: name,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: const InputDecoration(
+                    labelText: 'First name (optional)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: device,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(
+                    labelText: 'Device or browser (optional)',
+                    hintText: 'Android phone, iPhone, Chrome…',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: _draftRequest,
+                  icon: const Icon(Icons.email_outlined),
+                  label: const Text('Draft email request'),
+                ),
+                const SizedBox(height: 14),
+                const Text(
+                  'No email app? Send your request to cluttercash.help@gmail.com.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: _muted),
+                ),
               ],
             ),
           ),

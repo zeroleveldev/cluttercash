@@ -47,6 +47,19 @@ void main() {
     },
   );
 
+  testWidgets('beta invite entry offers an approval-based invite request', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const MaterialApp(home: BetaInviteCodeScreen()));
+
+    await tester.tap(find.text('Request beta access'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Join the invited beta'), findsOneWidget);
+    expect(find.textContaining('cluttercash.help@gmail.com'), findsOneWidget);
+    expect(find.text('Draft email request'), findsOneWidget);
+  });
+
   testWidgets('live scan success replaces loading with the real result', (
     tester,
   ) async {
