@@ -47,17 +47,48 @@ void main() {
     },
   );
 
-  testWidgets('beta invite entry offers an approval-based invite request', (
+  testWidgets('beta invite request collects an email and confirms delivery', (
     tester,
   ) async {
-    await tester.pumpWidget(const MaterialApp(home: BetaInviteCodeScreen()));
+    String? submittedEmail;
+    String? submittedName;
+    String? submittedDevice;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BetaInviteRequestScreen(
+          requestAccess:
+              ({required email, required name, required device}) async {
+                submittedEmail = email;
+                submittedName = name;
+                submittedDevice = device;
+                return 'request-123';
+              },
+        ),
+      ),
+    );
 
-    await tester.tap(find.text('Request beta access'));
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Email address'),
+      'tester@example.com',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'First name (optional)'),
+      'Taylor',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Device or browser (optional)'),
+      'Android phone',
+    );
+    await tester.ensureVisible(find.text('Request access'));
+    await tester.tap(find.text('Request access'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Join the invited beta'), findsOneWidget);
-    expect(find.textContaining('cluttercash.help@gmail.com'), findsOneWidget);
-    expect(find.text('Draft email request'), findsOneWidget);
+    expect(submittedEmail, 'tester@example.com');
+    expect(submittedName, 'Taylor');
+    expect(submittedDevice, 'Android phone');
+    expect(find.text('Request sent'), findsOneWidget);
+    expect(find.textContaining('review your request'), findsOneWidget);
+    expect(find.text('Draft email request'), findsNothing);
   });
 
   testWidgets('live scan success replaces loading with the real result', (
@@ -218,7 +249,10 @@ void main() {
     expect(find.text('Point at the mess.'), findsOneWidget);
     expect(find.text('Find the money.'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Scan my space'), findsOneWidget);
-    expect(find.textContaining('No account'), findsOneWidget);
+    expect(
+      find.text('No account or code needed for 3 free analyses'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('opens the privacy and beta terms from the welcome screen', (

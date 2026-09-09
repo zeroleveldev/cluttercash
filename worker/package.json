@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "test": "node --test",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "invite": "node scripts/generate-invite.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.129.1"

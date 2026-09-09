@@ -9,14 +9,29 @@ import '../domain/item.dart';
 import '../domain/scan_result.dart';
 
 class ScanApi {
-  const ScanApi({required this.baseUrl, this.inviteCode = '', this._client});
+  const ScanApi({
+    required this.baseUrl,
+    this.inviteCode = '',
+    this.deviceToken = '',
+    this._client,
+  });
 
   final String baseUrl;
   final String inviteCode;
+  final String deviceToken;
   final http.Client? _client;
 
   bool get isConfigured =>
-      baseUrl.trim().isNotEmpty && inviteCode.trim().isNotEmpty;
+      baseUrl.trim().isNotEmpty &&
+      (inviteCode.trim().isNotEmpty || deviceToken.trim().length >= 32);
+
+  void _addAccessHeader(Map<String, String> headers) {
+    if (inviteCode.trim().isNotEmpty) {
+      headers['X-ClutterCash-Invite'] = inviteCode.trim();
+    } else {
+      headers['X-ClutterCash-Device'] = deviceToken.trim();
+    }
+  }
 
   Future<ScanResult> analyze(
     Uint8List bytes, {
@@ -33,7 +48,6 @@ class ScanApi {
               'POST',
               Uri.parse('${baseUrl.replaceAll(RegExp(r'/$'), '')}/v1/scans'),
             )
-            ..headers['X-ClutterCash-Invite'] = inviteCode.trim()
             ..fields['betaConsent'] = 'true'
             ..files.add(
               http.MultipartFile.fromBytes(
@@ -43,6 +57,7 @@ class ScanApi {
                 contentType: image.contentType,
               ),
             );
+      _addAccessHeader(request.headers);
       final streamed = await client
           .send(request)
           .timeout(const Duration(seconds: 55));
@@ -75,7 +90,6 @@ class ScanApi {
                 '${baseUrl.replaceAll(RegExp(r'/$'), '')}/v1/items/identify',
               ),
             )
-            ..headers['X-ClutterCash-Invite'] = inviteCode.trim()
             ..fields['betaConsent'] = 'true'
             ..fields['itemName'] = item.name
             ..fields['category'] = item.category
@@ -87,6 +101,7 @@ class ScanApi {
                 contentType: image.contentType,
               ),
             );
+      _addAccessHeader(request.headers);
       final streamed = await client
           .send(request)
           .timeout(const Duration(seconds: 55));

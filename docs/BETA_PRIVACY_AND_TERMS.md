@@ -1,9 +1,9 @@
-# ClutterCash Free Invited Beta — Privacy Notice & Terms
+# ClutterCash Free Beta — Privacy Notice & Terms
 
 **Effective date:** September 9, 2026
 **Support and feedback:** [cluttercash.help@gmail.com](mailto:cluttercash.help@gmail.com)
 
-> This plain-language notice applies to the free, invite-only ClutterCash beta. It is not the policy for a future paid or store release.
+> This plain-language notice applies to the free ClutterCash beta: three no-registration analyses per browser/device, followed by optional manually approved invite access. It is not the policy for a future paid or store release.
 
 ## What ClutterCash does
 
@@ -11,9 +11,12 @@ ClutterCash helps a person photograph a cluttered space, identify visible items 
 
 ClutterCash is not an appraisal, authentication service, marketplace, financial advisor, transaction tracker, or guarantee of what an item will sell for. AI results and marketplace-search links are starting points for your own verification. You are responsible for confirming model, condition, accessories, legality, pricing, and marketplace rules before listing or selling anything.
 
-## Free invited beta
+## Free beta access
 
-- The beta is free. There is no subscription, scan pack, payment, or in-app purchase in this beta.
+- The beta is free. A browser/device may run three live analyses without creating an account, registering, or entering an invite code.
+- The app creates a random 32-byte token and saves it in local app/browser storage solely to enforce that three-use allowance. The Worker receives and hashes the token; its Durable Object stores only the hash and total accepted-use count. Clearing site storage can replace the local token, so a separate global daily cost ceiling remains in place as an abuse backstop.
+- After the three free analyses, a person may request optional continued beta access. The operator manually reviews requests and may issue a limited per-tester invite code.
+- There is no subscription, scan pack, payment, or in-app purchase in this beta.
 - The service is experimental and may change, be limited, or end without notice.
 - Only use it if you are at least 18 and have permission to photograph the space and items.
 - Do not upload illegal content or photos that put another person's privacy or safety at risk.
@@ -34,20 +37,26 @@ When you choose a photo for a live scan or a model-label refinement and tap **I 
 
 ClutterCash has no user accounts and no cloud project sync in this beta. The app stores your projects locally on the device/browser profile you use, including scan results, item corrections, and item statuses.
 
+### Beta access requests
+
+If you request beta access in the app, ClutterCash sends the email address you enter, plus an optional first name and device/browser description, through the Cloudflare Worker to the operator's private Discord webhook. This information is used only to review the request and contact you with an approval or beta code. Do not enter sensitive information. The Worker stores only one-way hashes of the requesting email and network address for a short anti-spam limit; it does not store the plaintext request in the Durable Object. Discord and Cloudflare process the request under their own policies.
+
 ### Limited operational data
 
-The Worker hashes the revocable invite code sent by the app and compares the hash with an operator-managed allow-list. A Cloudflare Durable Object stores that invite hash with accepted-request timestamps for the rolling seven-day limit, plus UTC-day reserved-cost totals and whether the daily ceiling alert was sent. It does not store the plaintext invite code, photo, prompt, provider response, project contents, item identity, or correction details.
+The Worker hashes each no-registration device token and revocable invite code. A Cloudflare Durable Object stores the device-token hash with a total accepted-use count for the three free analyses. For approved invite codes, it stores the invite hash with accepted-request timestamps for the rolling seven-day limit. The dynamic invite registry stores only the invite hash and creation time, not the plaintext code or tester email. The same Durable Object also stores UTC-day reserved-cost totals and whether the daily ceiling alert was sent. It does not store the plaintext device token, plaintext invite code, photo, prompt, provider response, project contents, item identity, or correction details.
 
-An invited build also sends a minimal, allow-listed event name when a scan starts, succeeds, or fails; a local project is created or reopened; an item is corrected or its status changes; or the app reports an unhandled framework/async error. Scan failures and app errors use only a coarse category such as `api`, `unknown`, `framework`, or `async`. The telemetry payload contains no photo, item/project name, value, invite code/hash, raw error text, stack trace, device identifier, account identifier, or arbitrary metadata. Accepted events are written to ClutterCash's Cloudflare Worker logs on a best-effort basis and are intended only for beta reliability/funnel review. Cloudflare and network providers may process standard connection data under their own policies. There is no third-party product-analytics SDK, ad tracker, user profile, session replay, or cloud crash-reporting SDK in this beta.
+When invite-backed telemetry is configured, the app also sends a minimal, allow-listed event name when a scan starts, succeeds, or fails; a local project is created or reopened; an item is corrected or its status changes; or the app reports an unhandled framework/async error. Scan failures and app errors use only a coarse category such as `api`, `unknown`, `framework`, or `async`. The telemetry payload contains no photo, item/project name, value, invite code/hash, raw error text, stack trace, device identifier, account identifier, or arbitrary metadata. Accepted events are written to ClutterCash's Cloudflare Worker logs on a best-effort basis and are intended only for beta reliability/funnel review. Cloudflare and network providers may process standard connection data under their own policies. There is no third-party product-analytics SDK, ad tracker, user profile, session replay, or cloud crash-reporting SDK in this beta.
 
-Sanitized operational alerts separately contain only a stable provider-failure event name and HTTP status, or a daily-budget-reached event.
+Provider and budget operational alerts contain only a stable event name and optional HTTP status. Beta-request alerts contain the submitted contact fields described above so the operator can review and respond.
 
 ## Retention and deletion
 
 - **Local projects:** Open **Saved projects** in ClutterCash to delete one project or delete all saved projects. This deletes that local app data from the current device/browser profile and cannot be undone.
 - **App/browser data:** You can also remove local data by uninstalling the app or clearing this site's/app's storage. Device backups may retain data under your device or browser provider's own settings.
 - **Uploaded images:** ClutterCash does not provide a cloud gallery or account-based image deletion tool because it does not intentionally store your uploaded image on its Worker. Google Gemini's handling is governed by Google's policies; ClutterCash cannot delete data held by Google.
-- **Invite quota data:** Invite hashes and accepted-request timestamps exist to enforce the rolling seven-day beta limit; daily reserved-cost counters and their alert marker are grouped by UTC date. ClutterCash does not use them as an account or activity profile.
+- **Beta access requests:** The private Discord alert remains subject to the Discord channel's retention until the operator deletes it. The Worker's one-way anti-spam hashes use a rolling 24-hour window; old timestamps are ignored and replaced when that requester submits again after the window.
+- **Free-use token:** The random token stays in local app/browser storage until that storage is cleared. Its Worker-side hash and accepted-use count remain for beta abuse/cost control; they are not linked to an account or submitted email.
+- **Invite quota data:** Approved invite hashes and accepted-request timestamps exist to enforce the rolling seven-day beta limit; daily reserved-cost counters and their alert marker are grouped by UTC date. ClutterCash does not use them as an account or activity profile.
 - **Beta diagnostic events:** Allow-listed event names remain subject to the Cloudflare account's configured log availability/retention. They cannot be deleted through the local project controls because they contain no project record or account identifier. The operator should use the shortest practical Cloudflare log retention for the beta and must not export raw logs into a long-term user profile.
 - **Help:** If you need help deleting local data or have a privacy question, email [cluttercash.help@gmail.com](mailto:cluttercash.help@gmail.com). Do not email sensitive photos, serial numbers, passwords, account information, or payment details.
 

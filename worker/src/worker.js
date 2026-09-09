@@ -1,5 +1,6 @@
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const INVITE_HEADER = 'X-ClutterCash-Invite';
+const DEVICE_HEADER = 'X-ClutterCash-Device';
 const INVITE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const TELEMETRY_EVENTS = new Set([
   'scan_started',
@@ -79,6 +80,8 @@ export function createHandler({
   now = () => Date.now(),
   alertSender = sendOperationalAlert,
   telemetrySender = recordTelemetry,
+  idGenerator = () => crypto.randomUUID(),
+  tokenGenerator = generateInviteCode,
 } = {}) {
   return async function handle(request, env = {}) {
     const origin = request.headers.get('Origin');
@@ -90,6 +93,36 @@ export function createHandler({
     if (url.pathname === '/health' && request.method === 'GET') {
       return json({ ok: true, analysisReady: Boolean(env.GEMINI_API_KEY), provider: 'gemini' }, 200, cors);
     }
+    if (url.pathname === '/v1/access-requests' && request.method === 'POST') {
+      const accessRequest = await parseAccessRequest(request);
+      if (!accessRequest) return json({ error: 'Enter a valid email address.' }, 400, cors);
+      const reserved = await reserveAccessRequest(env, accessRequest.email, request.headers.get('CF-Connecting-IP'), now());
+      if (!reserved.available) {
+        return json({ error: reserved.status === 429
+          ? 'A request was already received recently. Please wait before trying again.'
+          : 'Access requests are temporarily unavailable. Email cluttercash.help@gmail.com instead.' }, reserved.status, cors);
+      }
+      const requestId = idGenerator();
+      const delivered = await alertSender({ event: 'beta_access_requested', requestId, ...accessRequest }, env);
+      if (delivered !== true) {
+        return json({ error: 'The request could not be delivered. Email cluttercash.help@gmail.com instead.' }, 503, cors);
+      }
+      return json({ accepted: true, requestId }, 202, cors);
+    }
+    if (url.pathname === '/v1/admin/invites' && request.method === 'POST') {
+      if (!await authorizedAdmin(request, env)) return json({ error: 'Owner authorization is required.' }, 401, cors);
+      const input = await parseAdminInviteRequest(request);
+      if (!input) return json({ error: 'Enter a valid tester email address.' }, 400, cors);
+      const inviteCode = tokenGenerator();
+      const inviteHash = await sha256Hex(inviteCode);
+      const registered = await registerInvite(env, {
+        inviteHash,
+        email: input.email,
+        createdAt: now(),
+      });
+      if (!registered) return json({ error: 'The invite could not be registered.' }, 503, cors);
+      return json({ inviteCode, email: input.email }, 201, cors);
+    }
     const isScan = url.pathname === '/v1/scans' && request.method === 'POST';
     const isIdentity = url.pathname === '/v1/items/identify' && request.method === 'POST';
     const isTelemetry = url.pathname === '/v1/telemetry' && request.method === 'POST';
@@ -100,7 +133,7 @@ export function createHandler({
       return json({ error: 'Free beta access is not configured.' }, 503, cors);
     }
     const inviteHash = await authorizedInviteHash(request, env);
-    if (!inviteHash) return json({ error: 'A valid beta invite is required.' }, 401, cors);
+    if (!inviteHash) return json({ error: 'Free-use access could not be verified.' }, 401, cors);
 
     if (isTelemetry) {
       const event = await parseTelemetry(request);
@@ -133,7 +166,9 @@ export function createHandler({
       if (quota.shouldAlert) {
         await alertSender({ event: 'daily_budget_reached' }, env);
       }
-      return json({ error: 'Live analysis is temporarily unavailable. Please try again later.' }, quota.status, cors);
+      return json({ error: quota.reason === 'anonymous_limit'
+        ? 'You have used your 3 free analyses. Request beta access for a code to continue.'
+        : 'Live analysis is temporarily unavailable. Please try again later.' }, quota.status, cors);
     }
 
     let taskPrompt = prompt;
@@ -201,11 +236,143 @@ function betaAccessConfigured(env) {
 }
 
 async function authorizedInviteHash(request, env) {
-  const inviteCode = request.headers.get(INVITE_HEADER)?.trim();
-  if (!inviteCode || inviteCode.length > 128) return null;
-  const inviteHash = await sha256Hex(inviteCode);
-  const allowed = JSON.parse(env.BETA_INVITE_CODE_HASHES).map((hash) => hash.toLowerCase());
-  return allowed.includes(inviteHash) ? inviteHash : null;
+  const inviteCode = request.headers.get(INVITE_HEADER)?.trim() || '';
+  if (inviteCode && inviteCode.length <= 128) {
+    const inviteHash = await sha256Hex(inviteCode);
+    let allowed = [];
+    try {
+      const configured = JSON.parse(env.BETA_INVITE_CODE_HASHES || '[]');
+      if (Array.isArray(configured)) allowed = configured.map((hash) => String(hash).toLowerCase());
+    } catch {
+      allowed = [];
+    }
+    if (allowed.includes(inviteHash)) return inviteHash;
+    if (await registeredInviteAllowed(env, inviteHash)) return inviteHash;
+    return null;
+  }
+
+  const deviceToken = request.headers.get(DEVICE_HEADER)?.trim() || '';
+  if (deviceToken.length < 32 || deviceToken.length > 128 || !/^[A-Za-z0-9_-]+$/.test(deviceToken)) {
+    return null;
+  }
+  return `device:${await sha256Hex(deviceToken)}`;
+}
+
+async function parseAccessRequest(request) {
+  try {
+    const text = await request.text();
+    if (!text || text.length > 1024) return null;
+    const value = JSON.parse(text);
+    if (!value || Array.isArray(value) || typeof value !== 'object') return null;
+    if (Object.keys(value).some((key) => !['email', 'name', 'device'].includes(key))) return null;
+    const email = normalizeEmail(value.email);
+    if (!email) return null;
+    return {
+      email,
+      name: safeContactText(value.name, 60),
+      device: safeContactText(value.device, 80),
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function parseAdminInviteRequest(request) {
+  try {
+    const text = await request.text();
+    if (!text || text.length > 512) return null;
+    const value = JSON.parse(text);
+    if (!value || Array.isArray(value) || typeof value !== 'object') return null;
+    if (Object.keys(value).some((key) => key !== 'email')) return null;
+    const email = normalizeEmail(value.email);
+    return email ? { email } : null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeEmail(value) {
+  const email = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  return email.length <= 254 && /^[a-z0-9._%+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,63}$/.test(email)
+    ? email
+    : '';
+}
+
+function safeContactText(value, maxLength) {
+  return typeof value === 'string'
+    ? value.replace(/[\r\n\t`*_~|<>@]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, maxLength)
+    : '';
+}
+
+async function authorizedAdmin(request, env) {
+  const authorization = request.headers.get('Authorization') || '';
+  const provided = authorization.startsWith('Bearer ') ? authorization.slice(7).trim() : '';
+  const expected = typeof env.ADMIN_API_KEY === 'string' ? env.ADMIN_API_KEY.trim() : '';
+  if (provided.length < 32 || expected.length < 32) return false;
+  return await sha256Hex(provided) === await sha256Hex(expected);
+}
+
+function generateInviteCode() {
+  const bytes = new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+  return `CC-${[...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('')}`;
+}
+
+function durableStub(env) {
+  if (!env.BETA_USAGE_LIMITER?.idFromName || !env.BETA_USAGE_LIMITER?.get) return null;
+  const id = env.BETA_USAGE_LIMITER.idFromName('global');
+  return env.BETA_USAGE_LIMITER.get(id);
+}
+
+async function registeredInviteAllowed(env, inviteHash) {
+  try {
+    const stub = durableStub(env);
+    if (!stub) return false;
+    const response = await stub.fetch(new Request('https://usage.internal/invites/check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ inviteHash }),
+    }));
+    return response.ok && (await response.json())?.allowed === true;
+  } catch {
+    return false;
+  }
+}
+
+async function registerInvite(env, input) {
+  try {
+    const stub = durableStub(env);
+    if (!stub) return false;
+    const response = await stub.fetch(new Request('https://usage.internal/invites/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    }));
+    return response.ok && (await response.json())?.registered === true;
+  } catch {
+    return false;
+  }
+}
+
+async function reserveAccessRequest(env, email, ip, timestamp) {
+  try {
+    const stub = durableStub(env);
+    if (!stub) return { available: false, status: 503 };
+    const response = await stub.fetch(new Request('https://usage.internal/access-requests/reserve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        emailHash: await sha256Hex(email),
+        ipHash: await sha256Hex(typeof ip === 'string' && ip ? ip : 'unknown'),
+        timestamp,
+      }),
+    }));
+    if (!response.ok) return { available: false, status: 503 };
+    const result = await response.json();
+    return { available: result?.allowed === true, status: result?.allowed === true ? 202 : 429 };
+  } catch {
+    return { available: false, status: 503 };
+  }
 }
 
 async function reserveProviderBudget(env, inviteHash, timestamp) {
@@ -223,6 +390,7 @@ async function reserveProviderBudget(env, inviteHash, timestamp) {
         inviteHash,
         inviteLimit: positiveInteger(env.BETA_WEEKLY_REQUEST_LIMIT),
         inviteWindowMs: INVITE_WINDOW_MS,
+        anonymous: inviteHash.startsWith('device:'),
         budgetMicroUsd: positiveInteger(env.BETA_DAILY_BUDGET_MICRO_USD),
         requestCostMicroUsd: positiveInteger(env.GEMINI_MAX_REQUEST_COST_MICRO_USD),
       }),
@@ -233,6 +401,7 @@ async function reserveProviderBudget(env, inviteHash, timestamp) {
       available: result?.allowed === true,
       status: result?.allowed === true ? 200 : 429,
       shouldAlert: result?.shouldAlert === true,
+      reason: typeof result?.reason === 'string' ? result.reason : '',
     };
   } catch {
     return { available: false, status: 503 };
@@ -256,20 +425,61 @@ export class BetaUsageLimiter {
   }
 
   async fetch(request) {
-    if (request.method !== 'POST' || new URL(request.url).pathname !== '/reserve') {
-      return json({ error: 'Not found.' }, 404);
-    }
+    const pathname = new URL(request.url).pathname;
+    if (request.method !== 'POST') return json({ error: 'Not found.' }, 404);
     let input;
     try {
       input = await request.json();
     } catch {
-      return json({ error: 'Invalid reservation.' }, 400);
+      return json({ error: 'Invalid request.' }, 400);
     }
+
+    if (pathname === '/invites/register') {
+      const inviteHash = typeof input?.inviteHash === 'string' ? input.inviteHash.toLowerCase() : '';
+      const createdAt = Number.isSafeInteger(input?.createdAt) && input.createdAt > 0 ? input.createdAt : 0;
+      if (!/^[a-f0-9]{64}$/.test(inviteHash) || !createdAt) {
+        return json({ error: 'Invalid invite registration.' }, 400);
+      }
+      await this.storage.put(`allowed-invite:${inviteHash}`, { createdAt });
+      return json({ registered: true }, 201);
+    }
+
+    if (pathname === '/invites/check') {
+      const inviteHash = typeof input?.inviteHash === 'string' ? input.inviteHash.toLowerCase() : '';
+      if (!/^[a-f0-9]{64}$/.test(inviteHash)) return json({ allowed: false });
+      return json({ allowed: Boolean(await this.storage.get(`allowed-invite:${inviteHash}`)) });
+    }
+
+    if (pathname === '/access-requests/reserve') {
+      const emailHash = typeof input?.emailHash === 'string' ? input.emailHash.toLowerCase() : '';
+      const ipHash = typeof input?.ipHash === 'string' ? input.ipHash.toLowerCase() : '';
+      const timestamp = Number.isSafeInteger(input?.timestamp) && input.timestamp > 0 ? input.timestamp : 0;
+      if (!/^[a-f0-9]{64}$/.test(emailHash) || !/^[a-f0-9]{64}$/.test(ipHash) || !timestamp) {
+        return json({ error: 'Invalid access request reservation.' }, 400);
+      }
+      const windowStart = timestamp - 24 * 60 * 60 * 1000;
+      const result = await this.storage.transaction(async (transaction) => {
+        const emailKey = `access-email:${emailHash}`;
+        const ipKey = `access-ip:${ipHash}`;
+        const emailUses = (await transaction.get(emailKey) || []).filter((usedAt) => usedAt > windowStart);
+        const ipUses = (await transaction.get(ipKey) || []).filter((usedAt) => usedAt > windowStart);
+        if (emailUses.length >= 1 || ipUses.length >= 5) return { allowed: false };
+        await transaction.put({
+          [emailKey]: [...emailUses, timestamp],
+          [ipKey]: [...ipUses, timestamp],
+        });
+        return { allowed: true };
+      });
+      return json(result);
+    }
+
+    if (pathname !== '/reserve') return json({ error: 'Not found.' }, 404);
     const day = typeof input?.day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input.day) ? input.day : '';
     const timestamp = Number.isSafeInteger(input?.timestamp) && input.timestamp > 0 ? input.timestamp : 0;
     const inviteHash = typeof input?.inviteHash === 'string' ? input.inviteHash.trim().slice(0, 128) : '';
     const inviteLimit = positiveInteger(input?.inviteLimit);
     const inviteWindowMs = positiveInteger(input?.inviteWindowMs);
+    const anonymous = input?.anonymous === true;
     const budgetMicroUsd = positiveInteger(input?.budgetMicroUsd);
     const requestCostMicroUsd = positiveInteger(input?.requestCostMicroUsd);
     if (!day || !timestamp || !inviteHash || !inviteLimit || !inviteWindowMs || !budgetMicroUsd || !requestCostMicroUsd) {
@@ -278,12 +488,19 @@ export class BetaUsageLimiter {
 
     const result = await this.storage.transaction(async (transaction) => {
       const inviteKey = `invite:${inviteHash}`;
+      const anonymousKey = `anonymous:${inviteHash}`;
       const budgetKey = `${day}:budget`;
       const alertKey = `${day}:budget-alerted`;
-      const recent = (await transaction.get(inviteKey) || [])
-        .filter((usedAt) => Number.isSafeInteger(usedAt) && usedAt > timestamp - inviteWindowMs);
+      const recent = anonymous
+        ? []
+        : (await transaction.get(inviteKey) || [])
+            .filter((usedAt) => Number.isSafeInteger(usedAt) && usedAt > timestamp - inviteWindowMs);
+      const anonymousUsed = anonymous ? Number(await transaction.get(anonymousKey)) || 0 : 0;
       const budgetUsed = Number(await transaction.get(budgetKey)) || 0;
-      if (recent.length >= inviteLimit) {
+      if (anonymous && anonymousUsed >= inviteLimit) {
+        return { allowed: false, reason: 'anonymous_limit', shouldAlert: false };
+      }
+      if (!anonymous && recent.length >= inviteLimit) {
         return { allowed: false, reason: 'invite_limit', shouldAlert: false };
       }
       if (budgetUsed + requestCostMicroUsd > budgetMicroUsd) {
@@ -292,7 +509,9 @@ export class BetaUsageLimiter {
         return { allowed: false, reason: 'daily_budget', shouldAlert: !alreadyAlerted };
       }
       await transaction.put({
-        [inviteKey]: [...recent, timestamp],
+        ...(anonymous
+          ? { [anonymousKey]: anonymousUsed + 1 }
+          : { [inviteKey]: [...recent, timestamp] }),
         [budgetKey]: budgetUsed + requestCostMicroUsd,
       });
       return { allowed: true };
@@ -327,22 +546,33 @@ async function recordTelemetry(event) {
 }
 
 async function sendOperationalAlert(event, env) {
-  if (!env.ALERT_WEBHOOK_URL) return;
+  if (!env.ALERT_WEBHOOK_URL) return false;
   let url;
   try {
     url = new URL(env.ALERT_WEBHOOK_URL);
   } catch {
-    return;
+    return false;
   }
-  if (url.protocol !== 'https:') return;
+  if (url.protocol !== 'https:') return false;
+  const content = event.event === 'beta_access_requested'
+    ? [
+        '📬 **ClutterCash beta access request**',
+        `Request ID: ${event.requestId}`,
+        `Email: ${event.email}`,
+        event.name ? `Name: ${event.name}` : null,
+        event.device ? `Device: ${event.device}` : null,
+        'Review this request manually. Do not paste requester-supplied text into a shell.',
+      ].filter(Boolean).join('\n')
+    : `ClutterCash Worker alert: ${event.event}${Number.isInteger(event.status) ? ` (status ${event.status})` : ''}`;
   try {
-    await fetch(url, {
+    const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ source: 'cluttercash-worker', ...event }),
+      body: JSON.stringify({ content, allowed_mentions: { parse: [] } }),
     });
+    return response.ok;
   } catch {
-    // Alert delivery must not expose details or replace the client response.
+    return false;
   }
 }
 
@@ -353,7 +583,7 @@ function corsHeaders(origin, allowedOrigin) {
   return {
     'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-    'Access-Control-Allow-Headers': `Content-Type, ${INVITE_HEADER}`,
+    'Access-Control-Allow-Headers': `Content-Type, ${INVITE_HEADER}, ${DEVICE_HEADER}`,
     'Vary': 'Origin',
   };
 }

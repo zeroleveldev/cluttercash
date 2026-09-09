@@ -10,11 +10,33 @@ const env = {
   BETA_WEEKLY_REQUEST_LIMIT: '3',
   BETA_DAILY_BUDGET_MICRO_USD: '500000',
   GEMINI_MAX_REQUEST_COST_MICRO_USD: '10000',
+  ADMIN_API_KEY: 'test-admin-secret-at-least-32-bytes',
   BETA_USAGE_LIMITER: {
     idFromName: (name) => name,
-    get: () => ({ fetch: async () => Response.json({ allowed: true }) }),
+    get: () => ({
+      fetch: async (request) => new URL(request.url).pathname === '/invites/check'
+        ? Response.json({ allowed: false })
+        : Response.json({ allowed: true }),
+    }),
   },
 };
+
+function accessRequest(body = {}) {
+  return new Request('https://api.example/v1/access-requests', {
+    method: 'POST',
+    body: JSON.stringify({
+      email: 'tester@example.com',
+      name: 'Taylor',
+      device: 'Android phone',
+      ...body,
+    }),
+    headers: {
+      'Content-Type': 'application/json',
+      Origin: env.ALLOWED_ORIGIN,
+      'CF-Connecting-IP': '203.0.113.20',
+    },
+  });
+}
 
 function imageRequest({ consent = true, origin = env.ALLOWED_ORIGIN } = {}) {
   const form = new FormData();
@@ -96,7 +118,15 @@ test('rejects a missing or invalid invite code before consuming quota', async ()
     ...env,
     BETA_USAGE_LIMITER: {
       idFromName: (name) => name,
-      get: () => ({ fetch: async () => { quotaCalls += 1; return Response.json({ allowed: true }); } }),
+      get: () => ({
+        fetch: async (request) => {
+          if (new URL(request.url).pathname === '/invites/check') {
+            return Response.json({ allowed: false });
+          }
+          quotaCalls += 1;
+          return Response.json({ allowed: true });
+        },
+      }),
     },
   };
   const missing = imageRequest();
@@ -110,6 +140,188 @@ test('rejects a missing or invalid invite code before consuming quota', async ()
   assert.equal(quotaCalls, 0);
 });
 
+test('allows three no-registration analyses through a random browser token', async () => {
+  let quotaRequest;
+  const anonymousEnv = {
+    ...env,
+    BETA_USAGE_LIMITER: {
+      idFromName: (name) => name,
+      get: () => ({
+        fetch: async (request) => {
+          const pathname = new URL(request.url).pathname;
+          if (pathname === '/reserve') {
+            quotaRequest = await request.json();
+            return Response.json({ allowed: true });
+          }
+          return Response.json({ allowed: false });
+        },
+      }),
+    },
+  };
+  const request = imageRequest();
+  request.headers.delete('X-ClutterCash-Invite');
+  request.headers.set(
+    'X-ClutterCash-Device',
+    'anonymous-browser-token-at-least-32-bytes',
+  );
+  const fetcher = async () => Response.json({
+    candidates: [{ content: { parts: [{ text: JSON.stringify({
+      sceneSummary: 'Shelf',
+      items: [{
+        id: 'lamp', name: 'Lamp', category: 'Home', lowValue: 10,
+        typicalValue: 15, highValue: 20, confidence: 'medium', effort: 'low',
+        route: 'sell', reason: 'Visible lamp', searchQuery: 'lamp',
+        marketplace: 'localPickup', marketplaceReason: 'Easy pickup.',
+        box: { left: 0, top: 0, width: 1, height: 1 },
+      }],
+    }) }] } }],
+  });
+
+  const response = await createHandler({ fetcher })(request, anonymousEnv);
+
+  assert.equal(response.status, 200);
+  assert.match(quotaRequest.inviteHash, /^device:[a-f0-9]{64}$/);
+  assert.equal(quotaRequest.inviteLimit, 3);
+  assert.equal(quotaRequest.anonymous, true);
+});
+
+test('accepts a valid beta access request and sends its contact details to the owner alert', async () => {
+  const alerts = [];
+  const response = await createHandler({
+    idGenerator: () => 'request-123',
+    alertSender: async (event) => {
+      alerts.push(event);
+      return true;
+    },
+  })(accessRequest(), env);
+
+  assert.equal(response.status, 202);
+  assert.deepEqual(await response.json(), { accepted: true, requestId: 'request-123' });
+  assert.deepEqual(alerts, [{
+    event: 'beta_access_requested',
+    requestId: 'request-123',
+    email: 'tester@example.com',
+    name: 'Taylor',
+    device: 'Android phone',
+  }]);
+});
+
+test('rejects invalid access-request contact data without alerting the owner', async () => {
+  const alerts = [];
+  const response = await createHandler({
+    alertSender: async (event) => {
+      alerts.push(event);
+      return true;
+    },
+  })(accessRequest({ email: 'not-an-email', extra: 'private data' }), env);
+
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /valid email/i);
+  assert.deepEqual(alerts, []);
+});
+
+test('rejects access-request email values that could become shell commands', async () => {
+  const alerts = [];
+  const response = await createHandler({
+    alertSender: async (event) => {
+      alerts.push(event);
+      return true;
+    },
+  })(accessRequest({ email: 'tester@example.com;whoami' }), env);
+
+  assert.equal(response.status, 400);
+  assert.deepEqual(alerts, []);
+});
+
+test('owner-only endpoint creates and registers a new invite code', async () => {
+  let registryRequest;
+  const registryEnv = {
+    ...env,
+    BETA_USAGE_LIMITER: {
+      idFromName: (name) => name,
+      get: () => ({
+        fetch: async (request) => {
+          registryRequest = {
+            pathname: new URL(request.url).pathname,
+            body: await request.json(),
+          };
+          return Response.json({ registered: true }, { status: 201 });
+        },
+      }),
+    },
+  };
+  const request = new Request('https://api.example/v1/admin/invites', {
+    method: 'POST',
+    body: JSON.stringify({ email: 'tester@example.com' }),
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer test-admin-secret-at-least-32-bytes',
+    },
+  });
+  const response = await createHandler({
+    now: () => Date.UTC(2026, 8, 9, 20),
+    tokenGenerator: () => 'CC-TEST-VALID-INVITE-CODE',
+  })(request, registryEnv);
+
+  assert.equal(response.status, 201);
+  assert.deepEqual(await response.json(), {
+    inviteCode: 'CC-TEST-VALID-INVITE-CODE',
+    email: 'tester@example.com',
+  });
+  assert.equal(registryRequest.pathname, '/invites/register');
+  assert.equal(registryRequest.body.email, 'tester@example.com');
+  assert.equal(registryRequest.body.createdAt, Date.UTC(2026, 8, 9, 20));
+  assert.match(registryRequest.body.inviteHash, /^[a-f0-9]{64}$/);
+  assert.equal(JSON.stringify(registryRequest).includes('CC-TEST-VALID-INVITE-CODE'), false);
+});
+
+test('invite-generation endpoint rejects callers without the private owner key', async () => {
+  let registryCalls = 0;
+  const request = new Request('https://api.example/v1/admin/invites', {
+    method: 'POST',
+    body: JSON.stringify({ email: 'tester@example.com' }),
+    headers: { 'Content-Type': 'application/json' },
+  });
+  const response = await createHandler()(request, {
+    ...env,
+    BETA_USAGE_LIMITER: {
+      idFromName: (name) => name,
+      get: () => ({ fetch: async () => { registryCalls += 1; } }),
+    },
+  });
+
+  assert.equal(response.status, 401);
+  assert.equal(registryCalls, 0);
+  assert.equal((await response.text()).includes('test-admin-secret-at-least-32-bytes'), false);
+});
+
+test('durable invite registry accepts a generated invite hash without storing contact data', async () => {
+  const values = new Map();
+  const storage = {
+    get: async (key) => values.get(key),
+    put: async (key, value) => values.set(key, value),
+    transaction: async (callback) => callback({
+      get: async (key) => values.get(key),
+      put: async (entries) => { for (const [key, value] of Object.entries(entries)) values.set(key, value); },
+    }),
+  };
+  const limiter = new BetaUsageLimiter({ storage });
+  const inviteHash = 'a'.repeat(64);
+
+  const registered = await limiter.fetch(new Request('https://usage.internal/invites/register', {
+    method: 'POST',
+    body: JSON.stringify({ inviteHash, email: 'tester@example.com', createdAt: 123 }),
+  }));
+  assert.equal(registered.status, 201);
+
+  const checked = await limiter.fetch(new Request('https://usage.internal/invites/check', {
+    method: 'POST',
+    body: JSON.stringify({ inviteHash }),
+  }));
+  assert.deepEqual(await checked.json(), { allowed: true });
+  assert.equal(JSON.stringify([...values.entries()]).includes('tester@example.com'), false);
+});
+
 test('accepts only allow-listed privacy-minimal beta telemetry without consuming provider quota', async () => {
   const events = [];
   let quotaCalls = 0;
@@ -118,7 +330,15 @@ test('accepts only allow-listed privacy-minimal beta telemetry without consuming
     ...env,
     BETA_USAGE_LIMITER: {
       idFromName: (name) => name,
-      get: () => ({ fetch: async () => { quotaCalls += 1; return Response.json({ allowed: true }); } }),
+      get: () => ({
+        fetch: async (request) => {
+          if (new URL(request.url).pathname === '/invites/check') {
+            return Response.json({ allowed: false });
+          }
+          quotaCalls += 1;
+          return Response.json({ allowed: true });
+        },
+      }),
     },
   };
   const handler = createHandler({
@@ -193,6 +413,7 @@ test('uses durable quota and alerts once when the daily budget is reached', asyn
     inviteHash: '3ac96c6f1013fc0c2f5c5309d075f7785f1e3024609a64224bc6f406082af744',
     inviteLimit: 3,
     inviteWindowMs: 7 * 24 * 60 * 60 * 1000,
+    anonymous: false,
     budgetMicroUsd: 500000,
     requestCostMicroUsd: 10000,
   });
@@ -237,6 +458,41 @@ test('durable limiter enforces three analyses in a rolling seven-day invite wind
     timestamp: base.timestamp + (7 * 24 * 60 * 60 * 1000) + 1,
   })).json();
   assert.equal(afterWindow.allowed, true);
+});
+
+test('durable limiter allows only three anonymous analyses even after seven days', async () => {
+  const values = new Map();
+  const storage = {
+    transaction: async (callback) => callback({
+      get: async (key) => values.get(key),
+      put: async (entries) => { for (const [key, value] of Object.entries(entries)) values.set(key, value); },
+    }),
+  };
+  const limiter = new BetaUsageLimiter({ storage });
+  const reserve = (timestamp) => limiter.fetch(new Request('https://usage.internal/reserve', {
+    method: 'POST',
+    body: JSON.stringify({
+      day: new Date(timestamp).toISOString().slice(0, 10),
+      timestamp,
+      inviteHash: `device:${'a'.repeat(64)}`,
+      inviteLimit: 3,
+      inviteWindowMs: 7 * 24 * 60 * 60 * 1000,
+      budgetMicroUsd: 100000,
+      requestCostMicroUsd: 10000,
+      anonymous: true,
+    }),
+  }));
+  const first = Date.UTC(2026, 8, 9);
+
+  assert.equal((await (await reserve(first)).json()).allowed, true);
+  assert.equal((await (await reserve(first + 1)).json()).allowed, true);
+  assert.equal((await (await reserve(first + 2)).json()).allowed, true);
+  const afterWindow = await (await reserve(first + 8 * 24 * 60 * 60 * 1000)).json();
+  assert.deepEqual(afterWindow, {
+    allowed: false,
+    reason: 'anonymous_limit',
+    shouldAlert: false,
+  });
 });
 
 test('provider failures emit a sanitized operational alert', async () => {

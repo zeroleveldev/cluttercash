@@ -19,12 +19,12 @@ ClutterCash is a phone-first Flutter consumer app that turns a shelf, closet, or
 - Ranked action queue and item details
 - Persistent local clearing projects
 - Listed/sold/donated status and cleared-space progress
-- Free invited beta; no subscription, scan pack, payment, or in-app purchase is offered yet
+- Free beta with three no-registration analyses per browser/device, followed by optional in-app access requests, private owner alerts, and per-tester invite codes; no subscription, scan pack, payment, or in-app purchase is offered yet
 - Android and installable web targets
 
-## Free invited-beta privacy and terms
+## Free-beta privacy and terms
 
-Read the current [Free Invited Beta — Privacy Notice & Terms](docs/BETA_PRIVACY_AND_TERMS.md) before using live photo analysis. It explains the Google Gemini AI processor, local project storage, photo and deletion limits, beta disclaimers, and how to contact support at [cluttercash.help@gmail.com](mailto:cluttercash.help@gmail.com).
+Read the current [Free Beta — Privacy Notice & Terms](docs/BETA_PRIVACY_AND_TERMS.md) before using live photo analysis. It explains the Google Gemini AI processor, local project storage, photo and deletion limits, beta disclaimers, and how to contact support at [cluttercash.help@gmail.com](mailto:cluttercash.help@gmail.com).
 
 ## Run the demo
 
@@ -37,19 +37,18 @@ Tap **Scan my space → Try the demo room**. The demo is intentionally available
 
 ## Enable protected real-photo analysis
 
-The API keeps the Gemini credential off the client. Photos stay in memory, have an 8 MB cap, are not written to disk by the Worker, and responses use `Cache-Control: no-store`. Live scan and label routes require a hashed per-invite bearer code, an atomic Durable Object quota reservation, and a configured daily reserved-cost ceiling. Sanitized failure/budget alerts can be sent to a private HTTPS webhook.
+The API keeps the Gemini credential off the client. Photos stay in memory, have an 8 MB cap, are not written to disk by the Worker, and responses use `Cache-Control: no-store`. The app creates one random local token so each browser/device can run three live analyses without an account or invite code. The Worker stores only its hash and accepted-use count in the Durable Object. Approved invite codes provide a separate rolling allowance, and a global daily reserved-cost ceiling limits abuse if local storage is reset. A prospective tester can submit their email in the app after using the free allowance; the Worker rate-limits the request and sends it to the operator's private Discord webhook for manual approval.
 
-Follow [`docs/WORKER_BETA_OPERATIONS.md`](docs/WORKER_BETA_OPERATIONS.md) to generate invite hashes, configure Worker secrets, review limits, verify alerts, and handle rotation. Do not deploy as part of routine development.
+Follow [`docs/WORKER_BETA_OPERATIONS.md`](docs/WORKER_BETA_OPERATIONS.md) to configure Worker secrets, review requests, generate/register unique approved codes with the private owner command, review limits, verify alerts, and handle incidents.
 
-For an authorized invited-client build, pass both non-privileged client settings:
+The public build contains the Worker URL but no invite code:
 
 ```bash
 flutter run -d chrome \
-  --dart-define=CLUTTERCASH_API_URL=https://cluttercash-api.zeroleveldev.workers.dev \
-  --dart-define=CLUTTERCASH_BETA_INVITE="$INVITE_CODE"
+  --dart-define=CLUTTERCASH_API_URL=https://cluttercash-api.zeroleveldev.workers.dev
 ```
 
-Do not place `GEMINI_API_KEY`, Cloudflare credentials, alert credentials, or plaintext invite codes in Git or Flutter assets. A client invite code is a revocable, low-quota bearer token—not a server secret—and should be unique per invited person/device. Gemini's free tier is restricted here to staged, non-sensitive photos because free-tier submissions may be reviewed or used to improve Google's products.
+Approved testers enter the unique code sent to them in the app. Do not place `GEMINI_API_KEY`, `ADMIN_API_KEY`, Cloudflare credentials, webhook credentials, or plaintext invite codes in Git or Flutter assets. A client invite code is a revocable, low-quota bearer token—not a server secret—and should be unique per invited person/device. Gemini's free tier is restricted here to staged, non-sensitive photos because free-tier submissions may be reviewed or used to improve Google's products.
 
 Marketplace research in the free version opens official user-facing search pages; it does not scrape or ingest marketplace data. Active listings are labeled as asking prices, while eBay completed/sold results are presented as stronger—but still manually verified—evidence. The AI estimate is never presented as a researched comparable sale.
 
@@ -70,6 +69,7 @@ npm test --prefix worker
 
 - `lib/domain/` — immutable item, scan, and cleanout-project behavior
 - `lib/services/scan_api.dart` — multipart API client and strict parser
+- `lib/services/beta_access_api.dart` — public beta-request client with honest delivery errors
 - `lib/services/project_store.dart` — namespaced SharedPreferences persistence
 - `lib/main.dart` — responsive mobile UI and complete demo flow
 - `server/src/app.js` — bounded Express API with injected analyzer seam

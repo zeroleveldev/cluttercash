@@ -10,6 +10,8 @@ import 'domain/item.dart';
 import 'domain/listing_guide.dart';
 import 'domain/project.dart';
 import 'domain/scan_result.dart';
+import 'services/beta_access_api.dart';
+import 'services/free_use_token.dart';
 import 'services/project_store.dart';
 import 'services/scan_api.dart';
 import 'services/telemetry.dart';
@@ -37,7 +39,6 @@ const _orange = Color(0xFFFFA655);
 const _apiUrl = String.fromEnvironment('CLUTTERCASH_API_URL');
 const _betaInvite = String.fromEnvironment('CLUTTERCASH_BETA_INVITE');
 const _betaInviteStorageKey = 'cluttercash.betaInviteCode';
-const _supportEmail = 'cluttercash.help@gmail.com';
 
 Future<String> _activeInviteCode() async {
   if (_betaInvite.trim().isNotEmpty) return _betaInvite.trim();
@@ -47,8 +48,14 @@ Future<String> _activeInviteCode() async {
       '';
 }
 
-Future<ScanApi> _activeScanApi() async =>
-    ScanApi(baseUrl: _apiUrl, inviteCode: await _activeInviteCode());
+Future<ScanApi> _activeScanApi() async {
+  final preferences = await SharedPreferences.getInstance();
+  return ScanApi(
+    baseUrl: _apiUrl,
+    inviteCode: await _activeInviteCode(),
+    deviceToken: await getOrCreateFreeUseToken(preferences),
+  );
+}
 
 class ClutterCashApp extends StatelessWidget {
   const ClutterCashApp({
@@ -186,7 +193,7 @@ class WelcomeScreen extends StatelessWidget {
                     ),
                   ),
                   icon: const Icon(Icons.mark_email_unread_outlined),
-                  label: const Text('Request beta access'),
+                  label: const Text('Need more scans? Request access'),
                 ),
                 TextButton.icon(
                   onPressed: () => Navigator.push(
@@ -214,7 +221,7 @@ class WelcomeScreen extends StatelessWidget {
                     SizedBox(width: 7),
                     Flexible(
                       child: Text(
-                        'No account needed for your first scan',
+                        'No account or code needed for 3 free analyses',
                         style: TextStyle(
                           color: _muted,
                           fontWeight: FontWeight.w600,
@@ -299,7 +306,7 @@ class BetaTermsScreen extends StatelessWidget {
               ),
               SizedBox(height: 10),
               Text(
-                'Effective September 9, 2026. This free, invite-only beta has no subscriptions, scan packs, payments, or in-app purchases.',
+                'Effective September 9, 2026. This free beta allows three no-registration analyses per browser/device, with optional invite codes for approved continued testing. It has no subscriptions, scan packs, payments, or in-app purchases.',
                 style: TextStyle(color: _muted, height: 1.45),
               ),
               SizedBox(height: 22),
@@ -316,7 +323,7 @@ class BetaTermsScreen extends StatelessWidget {
               _TermsSection(
                 title: 'Your data and local storage',
                 body:
-                    'This beta has no account or cloud project sync. Projects, results, corrections, and item statuses stay in local app/browser storage on this device. Live AI routes require a revocable invite code and reserve limits through a Cloudflare Durable Object; this is beta access protection, not a user account or profile.',
+                    'This beta has no account or cloud project sync. Projects, results, corrections, and item statuses stay in local app/browser storage on this device. The app also creates one random local token to enforce three no-registration analyses; the Worker stores only its hash and use count. Approved invite codes can allow continued limited testing. These are cost/abuse controls, not a user account or advertising profile.',
               ),
               _TermsSection(
                 title: 'Minimal beta diagnostics',
@@ -1197,8 +1204,17 @@ class _BetaInviteCodeScreenState extends State<BetaInviteCodeScreen> {
   );
 }
 
+typedef BetaAccessSubmitter =
+    Future<String> Function({
+      required String email,
+      required String name,
+      required String device,
+    });
+
 class BetaInviteRequestScreen extends StatefulWidget {
-  const BetaInviteRequestScreen({super.key});
+  const BetaInviteRequestScreen({super.key, this.requestAccess});
+
+  final BetaAccessSubmitter? requestAccess;
 
   @override
   State<BetaInviteRequestScreen> createState() =>
@@ -1206,48 +1222,60 @@ class BetaInviteRequestScreen extends StatefulWidget {
 }
 
 class _BetaInviteRequestScreenState extends State<BetaInviteRequestScreen> {
+  final email = TextEditingController();
   final name = TextEditingController();
   final device = TextEditingController();
+  bool submitting = false;
+  bool sent = false;
+  String? message;
 
   @override
   void dispose() {
+    email.dispose();
     name.dispose();
     device.dispose();
     super.dispose();
   }
 
-  Future<void> _draftRequest() async {
-    final request = Uri(
-      scheme: 'mailto',
-      path: _supportEmail,
-      queryParameters: {
-        'subject': 'ClutterCash beta invite request',
-        'body':
-            'Hi! I would like a ClutterCash beta invite.\n\n'
-            'Name: ${name.text.trim()}\n'
-            'Device: ${device.text.trim()}\n\n'
-            'I understand this is a limited free beta and I will not share my invite code.',
-      },
-    );
-    var opened = false;
-    try {
-      opened = await launchUrl(request, mode: LaunchMode.platformDefault);
-    } on Object {
-      opened = false;
+  Future<void> _submitRequest() async {
+    final address = email.text.trim();
+    if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(address)) {
+      setState(() => message = 'Enter a valid email address.');
+      return;
     }
-    if (!opened && mounted) {
-      await Clipboard.setData(
-        ClipboardData(
-          text: 'ClutterCash beta invite request — email $_supportEmail',
-        ),
+    setState(() {
+      submitting = true;
+      message = null;
+    });
+    try {
+      final submit =
+          widget.requestAccess ??
+          ({required email, required name, required device}) =>
+              const BetaAccessApi(
+                baseUrl: _apiUrl,
+              ).requestAccess(email: email, name: name, device: device);
+      await submit(
+        email: address,
+        name: name.text.trim(),
+        device: device.text.trim(),
       );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Support email copied to your clipboard.'),
-          ),
-        );
-      }
+      if (!mounted) return;
+      setState(() {
+        submitting = false;
+        sent = true;
+      });
+    } on BetaAccessApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        submitting = false;
+        message = error.message;
+      });
+    } on Object {
+      if (!mounted) return;
+      setState(() {
+        submitting = false;
+        message = 'The request could not be sent. Try again.';
+      });
     }
   }
 
@@ -1260,53 +1288,108 @@ class _BetaInviteRequestScreenState extends State<BetaInviteRequestScreen> {
           constraints: const BoxConstraints(maxWidth: 480),
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const _Eyebrow('LIMITED FREE BETA'),
-                const SizedBox(height: 10),
-                Text(
-                  'Join the invited beta',
-                  style: Theme.of(context).textTheme.headlineLarge,
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  'Request access and we will review it before issuing a device-specific code. Invite codes have limited live AI analyses and cannot be shared.',
-                  style: TextStyle(color: _muted, height: 1.4),
-                ),
-                const SizedBox(height: 24),
-                TextField(
-                  controller: name,
-                  textCapitalization: TextCapitalization.words,
-                  decoration: const InputDecoration(
-                    labelText: 'First name (optional)',
-                    border: OutlineInputBorder(),
+            child: sent
+                ? Column(
+                    children: [
+                      const Icon(
+                        Icons.mark_email_read_outlined,
+                        color: _forest,
+                        size: 64,
+                      ),
+                      const SizedBox(height: 18),
+                      Text(
+                        'Request sent',
+                        style: Theme.of(context).textTheme.headlineLarge,
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'We will review your request. If approved, your unique beta code will be sent to the email you entered.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: _muted, height: 1.4),
+                      ),
+                    ],
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const _Eyebrow('LIMITED FREE BETA'),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Join the invited beta',
+                        style: Theme.of(context).textTheme.headlineLarge,
+                      ),
+                      const SizedBox(height: 10),
+                      const Text(
+                        'Enter your email and request access. The owner receives a private alert and reviews every request before issuing a unique code.',
+                        style: TextStyle(color: _muted, height: 1.4),
+                      ),
+                      const SizedBox(height: 24),
+                      TextField(
+                        controller: email,
+                        keyboardType: TextInputType.emailAddress,
+                        textCapitalization: TextCapitalization.none,
+                        autocorrect: false,
+                        autofillHints: const [AutofillHints.email],
+                        decoration: const InputDecoration(
+                          labelText: 'Email address',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: name,
+                        textCapitalization: TextCapitalization.words,
+                        decoration: const InputDecoration(
+                          labelText: 'First name (optional)',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: device,
+                        textCapitalization: TextCapitalization.sentences,
+                        decoration: const InputDecoration(
+                          labelText: 'Device or browser (optional)',
+                          hintText: 'Android phone, iPhone, Chrome…',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      FilledButton.icon(
+                        onPressed: submitting ? null : _submitRequest,
+                        icon: submitting
+                            ? const SizedBox.square(
+                                dimension: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(Icons.send_outlined),
+                        label: Text(
+                          submitting ? 'Sending request…' : 'Request access',
+                        ),
+                      ),
+                      if (message != null) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          message!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.redAccent,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 14),
+                      const Text(
+                        'Your email is used only to review and respond to this beta request. Need help? cluttercash.help@gmail.com',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: _muted),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: device,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: const InputDecoration(
-                    labelText: 'Device or browser (optional)',
-                    hintText: 'Android phone, iPhone, Chrome…',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                FilledButton.icon(
-                  onPressed: _draftRequest,
-                  icon: const Icon(Icons.email_outlined),
-                  label: const Text('Draft email request'),
-                ),
-                const SizedBox(height: 14),
-                const Text(
-                  'No email app? Send your request to cluttercash.help@gmail.com.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: _muted),
-                ),
-              ],
-            ),
           ),
         ),
       ),

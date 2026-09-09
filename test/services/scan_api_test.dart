@@ -94,6 +94,50 @@ void main() {
     expect(body.toLowerCase(), contains('content-type: image/jpeg'));
   });
 
+  test(
+    'live uploads can use a no-registration browser token instead of an invite',
+    () async {
+      late http.Request captured;
+      final client = MockClient((request) async {
+        captured = request;
+        return http.Response(
+          jsonEncode({
+            'sceneSummary': 'Shelf',
+            'items': [
+              {
+                'id': 'lamp',
+                'name': 'Lamp',
+                'category': 'Home',
+                'lowValue': 10,
+                'typicalValue': 15,
+                'highValue': 20,
+                'confidence': 'medium',
+                'effort': 'low',
+                'route': 'sell',
+                'reason': 'Visible lamp',
+              },
+            ],
+          }),
+          200,
+        );
+      });
+
+      final api = ScanApi(
+        baseUrl: 'https://api.example',
+        deviceToken: 'anonymous-browser-token-at-least-32-bytes',
+        client: client,
+      );
+      expect(api.isConfigured, true);
+      await api.analyze(Uint8List.fromList([0xff, 0xd8, 0xff, 0xe0]));
+
+      expect(
+        captured.headers['x-cluttercash-device'],
+        'anonymous-browser-token-at-least-32-bytes',
+      );
+      expect(captured.headers.containsKey('x-cluttercash-invite'), false);
+    },
+  );
+
   test('scan upload preserves PNG content type and filename', () async {
     late http.Request captured;
     final client = MockClient((request) async {
