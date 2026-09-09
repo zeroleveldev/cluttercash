@@ -182,6 +182,16 @@ class WelcomeScreen extends StatelessWidget {
                   onPressed: () => Navigator.push(
                     context,
                     MaterialPageRoute(
+                      builder: (_) => const BetaInviteRequestScreen(),
+                    ),
+                  ),
+                  icon: const Icon(Icons.mark_email_unread_outlined),
+                  label: const Text('Request beta access'),
+                ),
+                TextButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
                       builder: (_) => const ProjectLibraryScreen(),
                     ),
                   ),
