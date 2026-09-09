@@ -1590,11 +1590,27 @@ class _ItemDetailsSheetState extends State<_ItemDetailsSheet> {
   }
 
   Future<void> _open(Uri uri) async {
-    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!opened && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open that marketplace.')),
+    var opened = false;
+    try {
+      opened = await launchUrl(
+        uri,
+        mode: LaunchMode.platformDefault,
+        webOnlyWindowName: '_blank',
       );
+    } on Object {
+      opened = false;
+    }
+    if (!opened && mounted) {
+      await Clipboard.setData(ClipboardData(text: uri.toString()));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Marketplace link copied. Paste it into your browser.',
+            ),
+          ),
+        );
+      }
     }
   }
 
@@ -1796,24 +1812,16 @@ class _ItemDetailsSheetState extends State<_ItemDetailsSheet> {
             icon: const Icon(Icons.sell_outlined),
             label: const Text('Active listings'),
           ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => _open(guide.facebookMarketplace),
-                  child: const Text('Facebook'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => _open(guide.mercari),
-                  child: const Text('Mercari'),
-                ),
-              ),
-            ],
-          ),
+          if (guide.recommendedMarketplace != Marketplace.ebay &&
+              guide.recommendedMarketplace != Marketplace.consignment &&
+              guide.recommendedMarketplace != Marketplace.donate) ...[
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: () => _open(guide.recommendedSearch),
+              icon: const Icon(Icons.open_in_new_rounded),
+              label: Text('Search ${guide.recommendedMarketplace.label}'),
+            ),
+          ],
           const SizedBox(height: 9),
           Text(
             'Search: ${guide.searchQuery}',

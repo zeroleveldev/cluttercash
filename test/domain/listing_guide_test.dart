@@ -40,6 +40,7 @@ void main() {
       item.searchQuery,
     );
     expect(guide.mercari.host, 'www.mercari.com');
+    expect(guide.recommendedSearch, guide.ebayActive);
     expect(guide.mercari.queryParameters['keyword'], item.searchQuery);
     expect(guide.evidenceDisclaimer, contains('asking prices'));
     expect(guide.evidenceDisclaimer.toLowerCase(), contains('completed-sale'));

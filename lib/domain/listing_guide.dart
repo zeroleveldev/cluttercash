@@ -52,6 +52,14 @@ class ListingGuide {
   final Uri facebookMarketplace;
   final Uri mercari;
 
+  Uri get recommendedSearch => switch (recommendedMarketplace) {
+    Marketplace.facebookMarketplace ||
+    Marketplace.localPickup => facebookMarketplace,
+    Marketplace.mercari => mercari,
+    Marketplace.ebay => ebayActive,
+    Marketplace.consignment || Marketplace.donate => ebayActive,
+  };
+
   static const _evidenceDisclaimer =
       'Active listings show asking prices, not proven value. Completed-sale results are stronger evidence, but verify that the model, condition, accessories, and shipping terms truly match.';
 
