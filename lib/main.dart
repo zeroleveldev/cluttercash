@@ -10,6 +10,7 @@ import 'domain/listing_guide.dart';
 import 'domain/project.dart';
 import 'domain/scan_result.dart';
 import 'services/beta_access_api.dart';
+import 'services/beta_access_state.dart';
 import 'services/free_use_token.dart';
 import 'services/marketplace_link.dart';
 import 'services/project_store.dart';
@@ -287,7 +288,7 @@ class BetaTermsScreen extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(22, 16, 22, 32),
             children: const [
               Text(
-                'Free invited beta',
+                'Free beta',
                 style: TextStyle(
                   color: _forest,
                   fontWeight: FontWeight.w900,
@@ -306,7 +307,7 @@ class BetaTermsScreen extends StatelessWidget {
               ),
               SizedBox(height: 10),
               Text(
-                'Effective September 9, 2026. This free beta allows three no-registration analyses per browser/device, with optional invite codes for approved continued testing. It has no subscriptions, scan packs, payments, or in-app purchases.',
+                'Effective September 9, 2026. This free beta allows three no-registration analyses per browser/device, followed by optional manually approved access in that same browser. Existing invite codes remain supported. There are no subscriptions, scan packs, payments, or in-app purchases.',
                 style: TextStyle(color: _muted, height: 1.45),
               ),
               SizedBox(height: 22),
@@ -323,7 +324,12 @@ class BetaTermsScreen extends StatelessWidget {
               _TermsSection(
                 title: 'Your data and local storage',
                 body:
-                    'This beta has no account or cloud project sync. Projects, results, corrections, and item statuses stay in local app/browser storage on this device. The app also creates one random local token to enforce three no-registration analyses; the Worker stores only its hash and use count. Approved invite codes can allow continued limited testing. These are cost/abuse controls, not a user account or advertising profile.',
+                    'This beta has no account or cloud project sync. Projects, results, corrections, and item statuses stay in local app/browser storage on this device. The app creates one random local token to enforce three no-registration analyses. If you are approved, the Worker promotes that token’s hash to continued limited access. Plaintext browser tokens are not stored server-side. These are cost/abuse controls, not a user account or advertising profile.',
+              ),
+              _TermsSection(
+                title: 'Access requests',
+                body:
+                    'An access request sends your email and optional first name/device description to the owner’s private Discord alert. Plaintext contact fields are not stored in the Worker’s Durable Object. Hashed browser, status, and approval tokens are kept for up to seven days while pending. After approval, a private hashed status record remains for up to 30 days so this browser can show that access is active. Clearing site storage or switching browsers can break that link.',
               ),
               _TermsSection(
                 title: 'Minimal beta diagnostics',
@@ -1205,16 +1211,23 @@ class _BetaInviteCodeScreenState extends State<BetaInviteCodeScreen> {
 }
 
 typedef BetaAccessSubmitter =
-    Future<String> Function({
+    Future<BetaAccessReceipt> Function({
       required String email,
       required String name,
       required String device,
     });
+typedef BetaAccessStatusChecker =
+    Future<BetaAccessStatus> Function(BetaAccessReceipt receipt);
 
 class BetaInviteRequestScreen extends StatefulWidget {
-  const BetaInviteRequestScreen({super.key, this.requestAccess});
+  const BetaInviteRequestScreen({
+    super.key,
+    this.requestAccess,
+    this.checkStatus,
+  });
 
   final BetaAccessSubmitter? requestAccess;
+  final BetaAccessStatusChecker? checkStatus;
 
   @override
   State<BetaInviteRequestScreen> createState() =>
@@ -1227,7 +1240,66 @@ class _BetaInviteRequestScreenState extends State<BetaInviteRequestScreen> {
   final device = TextEditingController();
   bool submitting = false;
   bool sent = false;
+  bool checking = false;
+  bool approved = false;
+  BetaAccessReceipt? receipt;
   String? message;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadSavedRequest());
+  }
+
+  Future<void> _loadSavedRequest() async {
+    final saved = loadBetaAccessReceipt(await SharedPreferences.getInstance());
+    if (!mounted || saved == null) return;
+    setState(() {
+      receipt = saved;
+      sent = true;
+    });
+    await _checkStatus();
+  }
+
+  Future<BetaAccessReceipt> _requestAccess({
+    required String email,
+    required String name,
+    required String device,
+  }) async {
+    final preferences = await SharedPreferences.getInstance();
+    final deviceToken = await getOrCreateFreeUseToken(preferences);
+    return const BetaAccessApi(baseUrl: _apiUrl).requestAccess(
+      email: email,
+      name: name,
+      device: device,
+      deviceToken: deviceToken,
+    );
+  }
+
+  Future<void> _checkStatus() async {
+    final activeReceipt = receipt;
+    if (activeReceipt == null || checking) return;
+    setState(() {
+      checking = true;
+      message = null;
+    });
+    try {
+      final status =
+          await (widget.checkStatus ??
+              const BetaAccessApi(baseUrl: _apiUrl).checkStatus)(activeReceipt);
+      if (!mounted) return;
+      setState(() {
+        checking = false;
+        approved = status == BetaAccessStatus.approved;
+      });
+    } on BetaAccessApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        checking = false;
+        message = error.message;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -1235,6 +1307,18 @@ class _BetaInviteRequestScreenState extends State<BetaInviteRequestScreen> {
     name.dispose();
     device.dispose();
     super.dispose();
+  }
+
+  Future<void> _startNewRequest() async {
+    final preferences = await SharedPreferences.getInstance();
+    await clearBetaAccessReceipt(preferences);
+    if (!mounted) return;
+    setState(() {
+      sent = false;
+      approved = false;
+      receipt = null;
+      message = null;
+    });
   }
 
   Future<void> _submitRequest() async {
@@ -1248,21 +1332,22 @@ class _BetaInviteRequestScreenState extends State<BetaInviteRequestScreen> {
       message = null;
     });
     try {
-      final submit =
-          widget.requestAccess ??
-          ({required email, required name, required device}) =>
-              const BetaAccessApi(
-                baseUrl: _apiUrl,
-              ).requestAccess(email: email, name: name, device: device);
-      await submit(
+      final submit = widget.requestAccess ?? _requestAccess;
+      final submittedReceipt = await submit(
         email: address,
         name: name.text.trim(),
         device: device.text.trim(),
+      );
+      await saveBetaAccessReceipt(
+        await SharedPreferences.getInstance(),
+        submittedReceipt,
       );
       if (!mounted) return;
       setState(() {
         submitting = false;
         sent = true;
+        receipt = submittedReceipt;
+        approved = false;
       });
     } on BetaAccessApiException catch (error) {
       if (!mounted) return;
@@ -1291,23 +1376,58 @@ class _BetaInviteRequestScreenState extends State<BetaInviteRequestScreen> {
             child: sent
                 ? Column(
                     children: [
-                      const Icon(
-                        Icons.mark_email_read_outlined,
+                      Icon(
+                        approved
+                            ? Icons.verified_user_outlined
+                            : Icons.hourglass_top_rounded,
                         color: _forest,
                         size: 64,
                       ),
                       const SizedBox(height: 18),
                       Text(
-                        'Request sent',
+                        approved ? 'Access active' : 'Request sent',
                         style: Theme.of(context).textTheme.headlineLarge,
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 12),
-                      const Text(
-                        'We will review your request. If approved, your unique beta code will be sent to the email you entered.',
+                      Text(
+                        approved
+                            ? 'Continued beta access is active in this browser. No code or email is needed.'
+                            : 'We will review your request. If approved, access activates privately in this browser.',
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: _muted, height: 1.4),
+                        style: const TextStyle(color: _muted, height: 1.4),
                       ),
+                      if (!approved) ...[
+                        const SizedBox(height: 18),
+                        FilledButton.icon(
+                          onPressed: checking ? null : _checkStatus,
+                          icon: checking
+                              ? const SizedBox.square(
+                                  dimension: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.refresh_rounded),
+                          label: Text(
+                            checking ? 'Checking…' : 'Check approval status',
+                          ),
+                        ),
+                      ],
+                      if (message != null) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          message!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.redAccent),
+                        ),
+                        if (!approved)
+                          TextButton(
+                            onPressed: _startNewRequest,
+                            child: const Text('Start a new request'),
+                          ),
+                      ],
                     ],
                   )
                 : Column(
@@ -1316,12 +1436,12 @@ class _BetaInviteRequestScreenState extends State<BetaInviteRequestScreen> {
                       const _Eyebrow('LIMITED FREE BETA'),
                       const SizedBox(height: 10),
                       Text(
-                        'Join the invited beta',
+                        'Request continued access',
                         style: Theme.of(context).textTheme.headlineLarge,
                       ),
                       const SizedBox(height: 10),
                       const Text(
-                        'Enter your email and request access. The owner receives a private alert and reviews every request before issuing a unique code.',
+                        'Enter your email and request access. The owner receives a private alert and reviews every request. Approval activates continued access in this browser—no code or email delivery needed.',
                         style: TextStyle(color: _muted, height: 1.4),
                       ),
                       const SizedBox(height: 24),

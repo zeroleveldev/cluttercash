@@ -1,14 +1,14 @@
-# Invited-beta Worker operations
+# Free-beta Worker operations
 
-ClutterCash live analysis is fail-closed. Each browser/device receives three no-registration analyses through a random local token; approved invite codes provide a separate rolling allowance. Both paths require an available Durable Object quota reservation and configured Gemini key. The public health and beta-request routes do not consume analysis quota.
+ClutterCash live analysis is fail-closed. Each browser/device receives three no-registration analyses through a random local token; approved device hashes and legacy invite codes provide a separate rolling allowance. All analysis paths require an available Durable Object quota reservation and configured Gemini key. The public health, beta-request, owner-approval, and private status routes do not consume analysis quota.
 
 ## Controls
 
 - A cryptographically random token is created in local app/browser storage. The Worker hashes it and `BetaUsageLimiter` stores only the hash plus accepted-use count, allowing three no-registration analyses total for that local token.
 - Clearing local storage can create another token, so this is a low-friction trial control rather than strong identity. The global daily cost ceiling remains the hard owner-protection backstop.
-- Original owner/device invite codes are compared after SHA-256 hashing against the static secret. Newly approved tester codes are registered dynamically in `BetaUsageLimiter`; only their hashes and creation times are stored.
-- The public request form sends the submitted email and optional name/device to the private Discord webhook. One-way email/network hashes enforce one request per email and five per network address in a rolling 24-hour window; plaintext contact fields are not stored in the Durable Object.
-- `BetaUsageLimiter` uses one Durable Object and atomic storage transactions for invite registration, request throttling, a three-analysis per-invite rolling seven-day limit, and a separate global daily reserved-cost ceiling.
+- Original owner/device invite codes are compared after SHA-256 hashing against the static secret. Approved in-app requests register the requesting device-token hash; no plaintext code is generated or delivered. Legacy tester codes remain supported, and only their hashes and creation times are stored.
+- The public request form sends the submitted email and optional name/device to the private Discord webhook. One-way email/network hashes enforce one request per email and five per network address in a rolling 24-hour window. Plaintext contact fields are not stored in the Durable Object. Hashed device/status/approval tokens are retained for at most seven days while pending; approval removes the owner approval-token hash and retains a private hashed status record for at most 30 days.
+- `BetaUsageLimiter` uses one Durable Object and atomic storage transactions for approved-device/invite registration, request throttling, a three-analysis rolling seven-day approved-access limit, and a separate global daily reserved-cost ceiling.
 - The invite limit expires each analysis seven days after it was used; the global budget resets on the UTC date boundary.
 - Every accepted request reserves `GEMINI_MAX_REQUEST_COST_MICRO_USD` before Gemini is called. This intentionally over-counts failed calls so the configured ceiling fails safe; it is not billing reconciliation.
 - The first rejected reservation at the daily ceiling emits `daily_budget_reached`. Gemini failures emit only a route name and HTTP status. Provider/budget alerts never include photos, invite codes/hashes, prompts, provider response bodies, or API keys; access-request alerts include only the contact fields the requester explicitly submitted.
@@ -48,19 +48,23 @@ Deploy after the checks pass:
 npx wrangler deploy
 ```
 
-## Review and approve a request
+## Review and approve a request from Discord
 
-A valid public request posts a private Discord alert containing the request ID, tester email, and optional name/device. Review it manually. To approve, run from `worker/`:
+A valid public request posts a private Discord alert containing the request ID, tester email, optional name/device, and an expiring one-time owner approval URL.
 
-```bash
-npm run invite -- 'tester@example.com'
-```
+1. Review the submitted contact information in the private alert.
+2. Tap **Approve from your phone**. The first page is confirmation only, which prevents link previews and security scanners from approving automatically.
+3. Tap **Activate access** on the confirmation page.
+4. The Worker registers the requesting browser's SHA-256 device-token hash, removes the one-time owner approval hash, and marks the private in-app status approved. No access code appears in Discord, email, Worker logs, or the public app bundle.
+5. The tester reopens the request screen or taps **Check approval status**. Continued access already works in that same browser.
 
-The command reads `ADMIN_API_KEY` from the ignored local `.dev.vars`, asks the live Worker to create and register one high-entropy invite, and prints the plaintext code once. Send that code to the approved tester privately. Do not paste it into Discord channels, commit it, or add it to the public web build. The tester enters it through **Enter beta invite code** in the app.
+Approval links expire after seven days and cannot be replayed. If the tester clears site storage or switches browsers before approval, the stored device identity and private status receipt will be lost; ask them to submit a new request from the browser they intend to use.
+
+The private `npm run invite -- 'tester@example.com'` owner command remains available only for exceptional cross-device/manual support. It is not part of the normal in-app approval flow.
 
 ## Build the public beta client
 
-The public client needs only the Worker URL. New users receive three analyses immediately through their random local token. An approved tester can later enter a private code on the same device for continued limited testing:
+The public client needs only the Worker URL. New users receive three analyses immediately through their random local token. A manually approved request activates continued limited testing in that same browser without a code:
 
 ```bash
 flutter build web --release \
@@ -68,7 +72,7 @@ flutter build web --release \
   --dart-define=CLUTTERCASH_API_URL=https://cluttercash-api.zeroleveldev.workers.dev
 ```
 
-A client-side bearer code is observable on that tester's device and is not an account credential. Keep each code scoped to one tester/device, enforce its three-analysis rolling seven-day quota, and send it only to the intended tester. Never reuse Gemini, Cloudflare, admin, or other privileged secrets as an invite code.
+The browser keeps its random device token and private request-status token in local storage. The Worker receives them over HTTPS and stores only hashes. Never place browser tokens, approval URLs, Gemini, Cloudflare, admin, webhook, or other privileged values in Git, Flutter assets, public Discord channels, or screenshots.
 
 ## Alert and incident checks
 

@@ -21,7 +21,28 @@ const env = {
   },
 };
 
-function accessRequest(body = {}) {
+function memoryDurableEnv() {
+  const values = new Map();
+  const storage = {
+    get: async (key) => values.get(key),
+    put: async (keyOrValues, value) => {
+      if (typeof keyOrValues === 'string') values.set(keyOrValues, value);
+      else for (const [key, entry] of Object.entries(keyOrValues)) values.set(key, entry);
+    },
+    delete: async (key) => values.delete(key),
+    transaction: async (callback) => callback(storage),
+  };
+  const limiter = new BetaUsageLimiter({ storage });
+  return {
+    ...env,
+    BETA_USAGE_LIMITER: {
+      idFromName: (name) => name,
+      get: () => ({ fetch: (request) => limiter.fetch(request) }),
+    },
+  };
+}
+
+function accessRequest(body = {}, { deviceToken = 'a'.repeat(64) } = {}) {
   return new Request('https://api.example/v1/access-requests', {
     method: 'POST',
     body: JSON.stringify({
@@ -34,8 +55,14 @@ function accessRequest(body = {}) {
       'Content-Type': 'application/json',
       Origin: env.ALLOWED_ORIGIN,
       'CF-Connecting-IP': '203.0.113.20',
+      'X-ClutterCash-Device': deviceToken,
     },
   });
+}
+
+async function testSha256Hex(value) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 function imageRequest({ consent = true, origin = env.ALLOWED_ORIGIN } = {}) {
@@ -189,21 +216,151 @@ test('accepts a valid beta access request and sends its contact details to the o
   const alerts = [];
   const response = await createHandler({
     idGenerator: () => 'request-123',
+    approvalTokenGenerator: () => 'approval-token-at-least-thirty-two-bytes-abc',
+    requestTokenGenerator: () => 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
     alertSender: async (event) => {
       alerts.push(event);
       return true;
     },
-  })(accessRequest(), env);
+  })(accessRequest(), memoryDurableEnv());
 
   assert.equal(response.status, 202);
-  assert.deepEqual(await response.json(), { accepted: true, requestId: 'request-123' });
+  assert.deepEqual(await response.json(), {
+    accepted: true,
+    requestId: 'request-123',
+    requestToken: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+  });
   assert.deepEqual(alerts, [{
     event: 'beta_access_requested',
     requestId: 'request-123',
+    approvalUrl: 'https://api.example/v1/access-requests/request-123/approve?token=approval-token-at-least-thirty-two-bytes-abc',
     email: 'tester@example.com',
     name: 'Taylor',
     device: 'Android phone',
   }]);
+});
+
+test('phone approval activates continued access for the requesting browser only', async () => {
+  const pendingEnv = memoryDurableEnv();
+  const alerts = [];
+  const deviceToken = 'b'.repeat(64);
+  const requestToken = 'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc';
+  const handler = createHandler({
+    idGenerator: () => 'request-phone-123',
+    approvalTokenGenerator: () => 'approval-token-at-least-thirty-two-bytes-123',
+    requestTokenGenerator: () => requestToken,
+    alertSender: async (event) => {
+      alerts.push(event);
+      return true;
+    },
+  });
+
+  const submitted = await handler(accessRequest({}, { deviceToken }), pendingEnv);
+  assert.equal(submitted.status, 202);
+  assert.deepEqual(await submitted.json(), {
+    accepted: true,
+    requestId: 'request-phone-123',
+    requestToken,
+  });
+  assert.equal(alerts.length, 1);
+  assert.match(alerts[0].approvalUrl, /request-phone-123\/approve\?token=/);
+
+  const pendingStatus = await handler(new Request(
+    'https://api.example/v1/access-requests/request-phone-123/status',
+    { headers: { 'X-ClutterCash-Request': requestToken, Origin: env.ALLOWED_ORIGIN } },
+  ), pendingEnv);
+  assert.deepEqual(await pendingStatus.json(), { status: 'pending' });
+
+  const confirmation = await handler(new Request(alerts[0].approvalUrl), pendingEnv);
+  assert.equal(confirmation.status, 200);
+  assert.match(await confirmation.text(), /Activate access/i);
+
+  const approved = await handler(new Request(alerts[0].approvalUrl, {
+    method: 'POST',
+    headers: { Origin: 'https://api.example' },
+  }), pendingEnv);
+  assert.equal(approved.status, 200);
+  assert.match(await approved.text(), /Access activated/i);
+
+  const deviceHash = await testSha256Hex(deviceToken);
+  const registry = pendingEnv.BETA_USAGE_LIMITER.get();
+  const registered = await registry.fetch(new Request('https://usage.internal/invites/check', {
+    method: 'POST',
+    body: JSON.stringify({ inviteHash: deviceHash }),
+  }));
+  assert.deepEqual(await registered.json(), { allowed: true });
+
+  const approvedStatus = await handler(new Request(
+    'https://api.example/v1/access-requests/request-phone-123/status',
+    { headers: { 'X-ClutterCash-Request': requestToken, Origin: env.ALLOWED_ORIGIN } },
+  ), pendingEnv);
+  assert.deepEqual(await approvedStatus.json(), { status: 'approved' });
+
+  const wrongBrowser = await handler(new Request(
+    'https://api.example/v1/access-requests/request-phone-123/status',
+    { headers: { 'X-ClutterCash-Request': 'wrong-private-request-token-at-least-32', Origin: env.ALLOWED_ORIGIN } },
+  ), pendingEnv);
+  assert.equal(wrongBrowser.status, 404);
+
+  const replay = await handler(new Request(alerts[0].approvalUrl, { method: 'POST' }), pendingEnv);
+  assert.equal(replay.status, 409);
+});
+
+test('approved browser uses rolling beta quota instead of exhausted free-use quota', async () => {
+  let quotaRequest;
+  const approvedEnv = {
+    ...env,
+    BETA_USAGE_LIMITER: {
+      idFromName: (name) => name,
+      get: () => ({
+        fetch: async (request) => {
+          const pathname = new URL(request.url).pathname;
+          if (pathname === '/invites/check') return Response.json({ allowed: true });
+          if (pathname === '/reserve') {
+            quotaRequest = await request.json();
+            return Response.json({ allowed: true });
+          }
+          return Response.json({ allowed: false });
+        },
+      }),
+    },
+  };
+  const request = imageRequest();
+  request.headers.delete('X-ClutterCash-Invite');
+  request.headers.set('X-ClutterCash-Device', 'approved-browser-token-at-least-32-bytes');
+  const fetcher = async () => Response.json({
+    candidates: [{ content: { parts: [{ text: JSON.stringify({
+      sceneSummary: 'Shelf',
+      items: [{
+        id: 'lamp', name: 'Lamp', category: 'Home', lowValue: 10,
+        typicalValue: 15, highValue: 20, confidence: 'medium', effort: 'low',
+        route: 'sell', reason: 'Visible lamp', searchQuery: 'lamp',
+        marketplace: 'localPickup', marketplaceReason: 'Easy pickup.',
+        box: { left: 0, top: 0, width: 1, height: 1 },
+      }],
+    }) }] } }],
+  });
+
+  const response = await createHandler({ fetcher })(request, approvedEnv);
+  assert.equal(response.status, 200);
+  assert.match(quotaRequest.inviteHash, /^[a-f0-9]{64}$/);
+  assert.equal(quotaRequest.anonymous, false);
+});
+
+test('access requests fail closed when the browser device token is missing', async () => {
+  const alerts = [];
+  const request = accessRequest();
+  request.headers.delete('X-ClutterCash-Device');
+  const response = await createHandler({
+    alertSender: async (event) => {
+      alerts.push(event);
+      return true;
+    },
+  })(request, memoryDurableEnv());
+
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /browser/i);
+  assert.deepEqual(alerts, []);
 });
 
 test('rejects invalid access-request contact data without alerting the owner', async () => {

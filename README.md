@@ -19,7 +19,7 @@ ClutterCash is a phone-first Flutter consumer app that turns a shelf, closet, or
 - Ranked action queue and item details
 - Persistent local clearing projects
 - Listed/sold/donated status and cleared-space progress
-- Free beta with three no-registration analyses per browser/device, followed by optional in-app access requests, private owner alerts, and per-tester invite codes; no subscription, scan pack, payment, or in-app purchase is offered yet
+- Free beta with three no-registration analyses per browser/device, followed by optional in-app access requests, private phone approval from Discord, and automatic continued access in the requesting browser; no subscription, scan pack, payment, or in-app purchase is offered yet
 - Android and installable web targets
 
 ## Free-beta privacy and terms
@@ -37,9 +37,9 @@ Tap **Scan my space → Try the demo room**. The demo is intentionally available
 
 ## Enable protected real-photo analysis
 
-The API keeps the Gemini credential off the client. Photos stay in memory, have an 8 MB cap, are not written to disk by the Worker, and responses use `Cache-Control: no-store`. The app creates one random local token so each browser/device can run three live analyses without an account or invite code. The Worker stores only its hash and accepted-use count in the Durable Object. Approved invite codes provide a separate rolling allowance, and a global daily reserved-cost ceiling limits abuse if local storage is reset. A prospective tester can submit their email in the app after using the free allowance; the Worker rate-limits the request and sends it to the operator's private Discord webhook for manual approval.
+The API keeps the Gemini credential off the client. Photos stay in memory, have an 8 MB cap, are not written to disk by the Worker, and responses use `Cache-Control: no-store`. The app creates one random local token so each browser/device can run three live analyses without an account or invite code. The Worker stores only its hash and accepted-use count in the Durable Object. Approved device/invite hashes provide a separate rolling allowance, and a global daily reserved-cost ceiling limits abuse if local storage is reset. A prospective tester can submit their email in the app after using the free allowance; the Worker rate-limits the request and sends it to the operator's private Discord webhook. The operator reviews and approves from a two-tap phone page, after which continued access activates automatically in the requesting browser.
 
-Follow [`docs/WORKER_BETA_OPERATIONS.md`](docs/WORKER_BETA_OPERATIONS.md) to configure Worker secrets, review requests, generate/register unique approved codes with the private owner command, review limits, verify alerts, and handle incidents.
+Follow [`docs/WORKER_BETA_OPERATIONS.md`](docs/WORKER_BETA_OPERATIONS.md) to configure Worker secrets, review and approve requests from Discord, maintain the exceptional manual-code fallback, review limits, verify alerts, and handle incidents.
 
 The public build contains the Worker URL but no invite code:
 
@@ -48,7 +48,7 @@ flutter run -d chrome \
   --dart-define=CLUTTERCASH_API_URL=https://cluttercash-api.zeroleveldev.workers.dev
 ```
 
-Approved testers enter the unique code sent to them in the app. Do not place `GEMINI_API_KEY`, `ADMIN_API_KEY`, Cloudflare credentials, webhook credentials, or plaintext invite codes in Git or Flutter assets. A client invite code is a revocable, low-quota bearer token—not a server secret—and should be unique per invited person/device. Gemini's free tier is restricted here to staged, non-sensitive photos because free-tier submissions may be reviewed or used to improve Google's products.
+Normal in-app approvals require no code: the Worker promotes the requesting device-token hash, and the app privately checks approval with a separate locally stored status token. Existing manual invite codes remain supported for exceptional cross-device help. Do not place `GEMINI_API_KEY`, `ADMIN_API_KEY`, Cloudflare credentials, webhook credentials, browser/request tokens, approval URLs, or plaintext invite codes in Git or Flutter assets. Gemini's free tier is restricted here to staged, non-sensitive photos because free-tier submissions may be reviewed or used to improve Google's products.
 
 Marketplace research in the free version opens official user-facing search pages; it does not scrape or ingest marketplace data. Active listings are labeled as asking prices, while eBay completed/sold results are presented as stronger—but still manually verified—evidence. The AI estimate is never presented as a researched comparable sale.
 
@@ -69,12 +69,13 @@ npm test --prefix worker
 
 - `lib/domain/` — immutable item, scan, and cleanout-project behavior
 - `lib/services/scan_api.dart` — multipart API client and strict parser
-- `lib/services/beta_access_api.dart` — public beta-request client with honest delivery errors
+- `lib/services/beta_access_api.dart` — public beta-request and private approval-status client with honest errors
+- `lib/services/beta_access_state.dart` — local private request-receipt persistence
 - `lib/services/project_store.dart` — namespaced SharedPreferences persistence
 - `lib/main.dart` — responsive mobile UI and complete demo flow
 - `server/src/app.js` — bounded Express API with injected analyzer seam
 - `server/src/openai-analyzer.js` — server-only image analysis and JSON schema
-- `worker/src/worker.js` — Gemini proxy, consent gate, invite access, durable quota/budget protection, validation, and sanitized alerts
+- `worker/src/worker.js` — Gemini proxy, consent gate, phone approval, approved device/invite access, durable quota/budget protection, validation, and sanitized alerts
 - `test/`, `server/test/`, and `worker/test/` — domain, storage, API, and critical UI-flow tests
 
 ## Product thesis (not market validation)

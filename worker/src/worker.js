@@ -1,6 +1,7 @@
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const INVITE_HEADER = 'X-ClutterCash-Invite';
 const DEVICE_HEADER = 'X-ClutterCash-Device';
+const REQUEST_HEADER = 'X-ClutterCash-Request';
 const INVITE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const TELEMETRY_EVENTS = new Set([
   'scan_started',
@@ -82,32 +83,115 @@ export function createHandler({
   telemetrySender = recordTelemetry,
   idGenerator = () => crypto.randomUUID(),
   tokenGenerator = generateInviteCode,
+  approvalTokenGenerator = generateApprovalToken,
+  requestTokenGenerator = generateApprovalToken,
 } = {}) {
   return async function handle(request, env = {}) {
+    const url = new URL(request.url);
     const origin = request.headers.get('Origin');
-    const cors = corsHeaders(origin, env.ALLOWED_ORIGIN);
+    const isSameOriginApproval = /^\/v1\/access-requests\/[A-Za-z0-9_-]{1,100}\/approve$/.test(url.pathname)
+      && origin === url.origin;
+    const cors = isSameOriginApproval ? {} : corsHeaders(origin, env.ALLOWED_ORIGIN);
     if (origin && !cors) return json({ error: 'Origin is not allowed.' }, 403);
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors || {} });
 
-    const url = new URL(request.url);
     if (url.pathname === '/health' && request.method === 'GET') {
       return json({ ok: true, analysisReady: Boolean(env.GEMINI_API_KEY), provider: 'gemini' }, 200, cors);
+    }
+    const statusMatch = url.pathname.match(/^\/v1\/access-requests\/([A-Za-z0-9_-]{1,100})\/status$/);
+    if (statusMatch && request.method === 'GET') {
+      const requestToken = request.headers.get(REQUEST_HEADER)?.trim() || '';
+      if (!/^[a-f0-9]{64}$/.test(requestToken)) {
+        return json({ error: 'Request status not found.' }, 404, cors);
+      }
+      const result = await pendingAccessRequestStatus(env, {
+        requestId: statusMatch[1],
+        requestTokenHash: await sha256Hex(requestToken),
+        timestamp: now(),
+      });
+      if (!result.available) return json({ error: 'Request status not found.' }, 404, cors);
+      return json({ status: result.status }, 200, cors);
+    }
+
+    const approvalMatch = url.pathname.match(/^\/v1\/access-requests\/([A-Za-z0-9_-]{1,100})\/approve$/);
+    if (approvalMatch && (request.method === 'GET' || request.method === 'POST')) {
+      const requestId = approvalMatch[1];
+      const approvalToken = url.searchParams.get('token') || '';
+      if (approvalToken.length < 32 || approvalToken.length > 160) {
+        return approvalPage('Approval link invalid', 'This approval link is invalid or incomplete.', 400);
+      }
+      const tokenHash = await sha256Hex(approvalToken);
+      if (request.method === 'GET') {
+        const pending = await checkPendingAccessRequest(env, { requestId, tokenHash, timestamp: now() });
+        if (!pending.available) {
+          return approvalPage('Approval unavailable', 'This request was already handled or the link expired.', 410);
+        }
+        return approvalConfirmationPage(request.url);
+      }
+
+      const claimed = await claimPendingAccessRequest(env, { requestId, tokenHash, timestamp: now() });
+      if (!claimed.available) {
+        return approvalPage('Approval unavailable', 'This request was already handled or the link expired.', 409);
+      }
+      const registered = await registerInvite(env, {
+        inviteHash: claimed.deviceHash,
+        email: '',
+        createdAt: now(),
+      });
+      if (!registered) {
+        await releasePendingAccessRequest(env, { requestId, tokenHash });
+        return approvalPage('Could not approve', 'Access could not be activated. Please try again.', 503);
+      }
+      const completed = await completePendingAccessRequest(env, {
+        requestId,
+        tokenHash,
+        timestamp: now(),
+      });
+      if (!completed) {
+        return approvalPage('Could not approve', 'Access was registered, but status could not be updated. The requester may retry in the app.', 503);
+      }
+      return approvalPage('Access activated', 'Continued beta access is now active in the requesting browser. You can close this page.', 200);
     }
     if (url.pathname === '/v1/access-requests' && request.method === 'POST') {
       const accessRequest = await parseAccessRequest(request);
       if (!accessRequest) return json({ error: 'Enter a valid email address.' }, 400, cors);
-      const reserved = await reserveAccessRequest(env, accessRequest.email, request.headers.get('CF-Connecting-IP'), now());
+      const deviceToken = request.headers.get(DEVICE_HEADER)?.trim().toLowerCase() || '';
+      if (!/^[a-f0-9]{64}$/.test(deviceToken)) {
+        return json({ error: 'This browser could not be linked to the access request. Refresh and try again.' }, 400, cors);
+      }
+      const timestamp = now();
+      const reserved = await reserveAccessRequest(env, accessRequest.email, request.headers.get('CF-Connecting-IP'), timestamp);
       if (!reserved.available) {
         return json({ error: reserved.status === 429
           ? 'A request was already received recently. Please wait before trying again.'
           : 'Access requests are temporarily unavailable. Email cluttercash.help@gmail.com instead.' }, reserved.status, cors);
       }
       const requestId = idGenerator();
-      const delivered = await alertSender({ event: 'beta_access_requested', requestId, ...accessRequest }, env);
+      const approvalToken = approvalTokenGenerator();
+      const requestToken = requestTokenGenerator();
+      const tokenHash = await sha256Hex(approvalToken);
+      const requestTokenHash = await sha256Hex(requestToken);
+      const deviceHash = await sha256Hex(deviceToken);
+      const stored = await storePendingAccessRequest(env, {
+        requestId,
+        tokenHash,
+        requestTokenHash,
+        deviceHash,
+        createdAt: timestamp,
+        expiresAt: timestamp + 7 * 24 * 60 * 60 * 1000,
+      });
+      if (!stored) {
+        return json({ error: 'Access requests are temporarily unavailable. Email cluttercash.help@gmail.com instead.' }, 503, cors);
+      }
+      const approvalUrl = `${url.origin}/v1/access-requests/${encodeURIComponent(requestId)}/approve?token=${encodeURIComponent(approvalToken)}`;
+      const delivered = await alertSender({
+        event: 'beta_access_requested', requestId, approvalUrl, ...accessRequest,
+      }, env);
       if (delivered !== true) {
+        await deletePendingAccessRequest(env, { requestId, tokenHash });
         return json({ error: 'The request could not be delivered. Email cluttercash.help@gmail.com instead.' }, 503, cors);
       }
-      return json({ accepted: true, requestId }, 202, cors);
+      return json({ accepted: true, requestId, requestToken }, 202, cors);
     }
     if (url.pathname === '/v1/admin/invites' && request.method === 'POST') {
       if (!await authorizedAdmin(request, env)) return json({ error: 'Owner authorization is required.' }, 401, cors);
@@ -255,7 +339,9 @@ async function authorizedInviteHash(request, env) {
   if (deviceToken.length < 32 || deviceToken.length > 128 || !/^[A-Za-z0-9_-]+$/.test(deviceToken)) {
     return null;
   }
-  return `device:${await sha256Hex(deviceToken)}`;
+  const deviceHash = await sha256Hex(deviceToken);
+  if (await registeredInviteAllowed(env, deviceHash)) return deviceHash;
+  return `device:${deviceHash}`;
 }
 
 async function parseAccessRequest(request) {
@@ -318,6 +404,12 @@ function generateInviteCode() {
   return `CC-${[...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('')}`;
 }
 
+function generateApprovalToken() {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
 function durableStub(env) {
   if (!env.BETA_USAGE_LIMITER?.idFromName || !env.BETA_USAGE_LIMITER?.get) return null;
   const id = env.BETA_USAGE_LIMITER.idFromName('global');
@@ -352,6 +444,59 @@ async function registerInvite(env, input) {
   } catch {
     return false;
   }
+}
+
+async function pendingAccessRequestCall(env, path, input) {
+  try {
+    const stub = durableStub(env);
+    if (!stub) return null;
+    const response = await stub.fetch(new Request(`https://usage.internal${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    }));
+    if (!response.ok) return null;
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+async function storePendingAccessRequest(env, input) {
+  return (await pendingAccessRequestCall(env, '/access-requests/store', input))?.stored === true;
+}
+
+async function checkPendingAccessRequest(env, input) {
+  const result = await pendingAccessRequestCall(env, '/access-requests/check', input);
+  return { available: result?.available === true };
+}
+
+async function pendingAccessRequestStatus(env, input) {
+  const result = await pendingAccessRequestCall(env, '/access-requests/status', input);
+  return {
+    available: result?.available === true,
+    status: result?.status === 'approved' ? 'approved' : 'pending',
+  };
+}
+
+async function claimPendingAccessRequest(env, input) {
+  const result = await pendingAccessRequestCall(env, '/access-requests/claim', input);
+  return {
+    available: result?.available === true,
+    deviceHash: typeof result?.deviceHash === 'string' ? result.deviceHash : '',
+  };
+}
+
+async function releasePendingAccessRequest(env, input) {
+  return (await pendingAccessRequestCall(env, '/access-requests/release', input))?.released === true;
+}
+
+async function completePendingAccessRequest(env, input) {
+  return (await pendingAccessRequestCall(env, '/access-requests/complete', input))?.completed === true;
+}
+
+async function deletePendingAccessRequest(env, input) {
+  return (await pendingAccessRequestCall(env, '/access-requests/delete', input))?.deleted === true;
 }
 
 async function reserveAccessRequest(env, email, ip, timestamp) {
@@ -424,6 +569,30 @@ export class BetaUsageLimiter {
     this.storage = state.storage;
   }
 
+  async scheduleCleanup(timestamp) {
+    if (typeof this.storage.getAlarm !== 'function' || typeof this.storage.setAlarm !== 'function') return;
+    const scheduled = await this.storage.getAlarm();
+    if (scheduled === null || timestamp < scheduled) await this.storage.setAlarm(timestamp);
+  }
+
+  async alarm() {
+    if (typeof this.storage.list !== 'function') return;
+    const timestamp = Date.now();
+    const records = await this.storage.list({ prefix: 'pending-access:' });
+    let nextExpiry = null;
+    for (const [key, record] of records) {
+      const expiresAt = record?.status === 'approved' ? record.statusExpiresAt : record?.expiresAt;
+      if (!Number.isSafeInteger(expiresAt) || expiresAt <= timestamp) {
+        await this.storage.delete(key);
+      } else if (nextExpiry === null || expiresAt < nextExpiry) {
+        nextExpiry = expiresAt;
+      }
+    }
+    if (nextExpiry !== null && typeof this.storage.setAlarm === 'function') {
+      await this.storage.setAlarm(nextExpiry);
+    }
+  }
+
   async fetch(request) {
     const pathname = new URL(request.url).pathname;
     if (request.method !== 'POST') return json({ error: 'Not found.' }, 404);
@@ -448,6 +617,118 @@ export class BetaUsageLimiter {
       const inviteHash = typeof input?.inviteHash === 'string' ? input.inviteHash.toLowerCase() : '';
       if (!/^[a-f0-9]{64}$/.test(inviteHash)) return json({ allowed: false });
       return json({ allowed: Boolean(await this.storage.get(`allowed-invite:${inviteHash}`)) });
+    }
+
+    if (pathname.startsWith('/access-requests/') && pathname !== '/access-requests/reserve') {
+      const requestId = typeof input?.requestId === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(input.requestId)
+        ? input.requestId
+        : '';
+      const tokenHash = typeof input?.tokenHash === 'string' ? input.tokenHash.toLowerCase() : '';
+      const requiresApprovalToken = pathname !== '/access-requests/status';
+      if (!requestId || (requiresApprovalToken && !/^[a-f0-9]{64}$/.test(tokenHash))) {
+        return json({ error: 'Invalid pending request operation.' }, 400);
+      }
+      const key = `pending-access:${requestId}`;
+
+      if (pathname === '/access-requests/store') {
+        const requestTokenHash = typeof input?.requestTokenHash === 'string'
+          ? input.requestTokenHash.toLowerCase()
+          : '';
+        const deviceHash = typeof input?.deviceHash === 'string' ? input.deviceHash.toLowerCase() : '';
+        const createdAt = Number.isSafeInteger(input?.createdAt) && input.createdAt > 0 ? input.createdAt : 0;
+        const expiresAt = Number.isSafeInteger(input?.expiresAt) && input.expiresAt > createdAt
+          ? input.expiresAt
+          : 0;
+        if (!/^[a-f0-9]{64}$/.test(requestTokenHash)
+            || !/^[a-f0-9]{64}$/.test(deviceHash) || !createdAt || !expiresAt
+            || expiresAt - createdAt > 7 * 24 * 60 * 60 * 1000) {
+          return json({ error: 'Invalid pending request.' }, 400);
+        }
+        await this.storage.put(key, {
+          requestId, tokenHash, requestTokenHash, deviceHash,
+          createdAt, expiresAt, status: 'pending',
+        });
+        await this.scheduleCleanup(expiresAt);
+        return json({ stored: true }, 201);
+      }
+
+      if (pathname === '/access-requests/status') {
+        const timestamp = Number.isSafeInteger(input?.timestamp) && input.timestamp > 0 ? input.timestamp : 0;
+        const requestTokenHash = typeof input?.requestTokenHash === 'string'
+          ? input.requestTokenHash.toLowerCase()
+          : '';
+        const record = await this.storage.get(key);
+        const statusExpiry = record?.status === 'approved' ? record.statusExpiresAt : record?.expiresAt;
+        const available = Boolean(
+          timestamp && /^[a-f0-9]{64}$/.test(requestTokenHash) && record
+          && record.requestTokenHash === requestTokenHash
+          && (record.status === 'pending' || record.status === 'approved')
+          && statusExpiry > timestamp,
+        );
+        return json({ available, ...(available ? { status: record.status } : {}) });
+      }
+
+      if (pathname === '/access-requests/check') {
+        const timestamp = Number.isSafeInteger(input?.timestamp) && input.timestamp > 0 ? input.timestamp : 0;
+        const record = await this.storage.get(key);
+        const available = Boolean(
+          timestamp && record && record.tokenHash === tokenHash
+          && record.status === 'pending' && record.expiresAt > timestamp,
+        );
+        return json({ available });
+      }
+
+      if (pathname === '/access-requests/claim') {
+        const timestamp = Number.isSafeInteger(input?.timestamp) && input.timestamp > 0 ? input.timestamp : 0;
+        const result = await this.storage.transaction(async (transaction) => {
+          const record = await transaction.get(key);
+          if (!timestamp || !record || record.tokenHash !== tokenHash
+              || record.status !== 'pending' || record.expiresAt <= timestamp) {
+            return { available: false };
+          }
+          await transaction.put(key, { ...record, status: 'processing' });
+          return { available: true, deviceHash: record.deviceHash };
+        });
+        return json(result);
+      }
+
+      if (pathname === '/access-requests/release') {
+        const released = await this.storage.transaction(async (transaction) => {
+          const record = await transaction.get(key);
+          if (!record || record.tokenHash !== tokenHash || record.status !== 'processing') return false;
+          await transaction.put(key, { ...record, status: 'pending' });
+          return true;
+        });
+        return json({ released });
+      }
+
+      if (pathname === '/access-requests/complete') {
+        const timestamp = Number.isSafeInteger(input?.timestamp) && input.timestamp > 0 ? input.timestamp : 0;
+        const statusExpiresAt = timestamp + 30 * 24 * 60 * 60 * 1000;
+        const completed = await this.storage.transaction(async (transaction) => {
+          const record = await transaction.get(key);
+          if (!timestamp || !record || record.tokenHash !== tokenHash || record.status !== 'processing') {
+            return false;
+          }
+          await transaction.put(key, {
+            requestId,
+            requestTokenHash: record.requestTokenHash,
+            deviceHash: record.deviceHash,
+            status: 'approved',
+            statusExpiresAt,
+          });
+          return true;
+        });
+        if (completed) await this.scheduleCleanup(statusExpiresAt);
+        return json({ completed });
+      }
+
+      if (pathname === '/access-requests/delete') {
+        const record = await this.storage.get(key);
+        if (!record || record.tokenHash !== tokenHash) return json({ deleted: false });
+        await this.storage.delete(key);
+        return json({ deleted: true });
+      }
     }
 
     if (pathname === '/access-requests/reserve') {
@@ -545,6 +826,34 @@ async function recordTelemetry(event) {
   console.info(JSON.stringify({ source: 'cluttercash-beta', ...event }));
 }
 
+function approvalConfirmationPage(requestUrl) {
+  const action = escapeHtml(requestUrl);
+  return html(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Approve ClutterCash access</title></head><body><main><h1>Approve beta access?</h1><p>This will activate continued access in the browser that submitted the request.</p><form method="post" action="${action}"><button type="submit">Activate access</button></form><p><small>No access code or private token will be posted to Discord.</small></p></main></body></html>`, 200);
+}
+
+function approvalPage(title, message, status) {
+  return html(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title></head><body><main><h1>${escapeHtml(title)}</h1><p>${escapeHtml(message)}</p></main></body></html>`, status);
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[character]);
+}
+
+function html(body, status = 200) {
+  return new Response(body, {
+    status,
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+      'Referrer-Policy': 'no-referrer',
+      'X-Content-Type-Options': 'nosniff',
+    },
+  });
+}
+
 async function sendOperationalAlert(event, env) {
   if (!env.ALERT_WEBHOOK_URL) return false;
   let url;
@@ -561,7 +870,8 @@ async function sendOperationalAlert(event, env) {
         `Email: ${event.email}`,
         event.name ? `Name: ${event.name}` : null,
         event.device ? `Device: ${event.device}` : null,
-        'Review this request manually. Do not paste requester-supplied text into a shell.',
+        `Approve from your phone: ${event.approvalUrl}`,
+        'The link opens a confirmation page; approval is not automatic on first tap.',
       ].filter(Boolean).join('\n')
     : `ClutterCash Worker alert: ${event.event}${Number.isInteger(event.status) ? ` (status ${event.status})` : ''}`;
   try {
@@ -583,7 +893,7 @@ function corsHeaders(origin, allowedOrigin) {
   return {
     'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-    'Access-Control-Allow-Headers': `Content-Type, ${INVITE_HEADER}, ${DEVICE_HEADER}`,
+    'Access-Control-Allow-Headers': `Content-Type, ${INVITE_HEADER}, ${DEVICE_HEADER}, ${REQUEST_HEADER}`,
     'Vary': 'Origin',
   };
 }

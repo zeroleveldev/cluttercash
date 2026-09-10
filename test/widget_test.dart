@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:cluttercash/domain/item.dart';
 import 'package:cluttercash/domain/scan_result.dart';
 import 'package:cluttercash/main.dart';
+import 'package:cluttercash/services/beta_access_api.dart';
 import 'package:cluttercash/services/scan_api.dart';
 import 'package:cluttercash/services/telemetry.dart';
 import 'package:flutter/material.dart';
@@ -50,19 +51,23 @@ void main() {
   testWidgets('beta invite request collects an email and confirms delivery', (
     tester,
   ) async {
+    SharedPreferences.setMockInitialValues({});
     String? submittedEmail;
     String? submittedName;
     String? submittedDevice;
     await tester.pumpWidget(
       MaterialApp(
         home: BetaInviteRequestScreen(
-          requestAccess:
-              ({required email, required name, required device}) async {
-                submittedEmail = email;
-                submittedName = name;
-                submittedDevice = device;
-                return 'request-123';
-              },
+          requestAccess: ({required email, required name, required device}) async {
+            submittedEmail = email;
+            submittedName = name;
+            submittedDevice = device;
+            return const BetaAccessReceipt(
+              requestId: 'request-123',
+              requestToken:
+                  'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            );
+          },
         ),
       ),
     );
@@ -89,6 +94,28 @@ void main() {
     expect(find.text('Request sent'), findsOneWidget);
     expect(find.textContaining('review your request'), findsOneWidget);
     expect(find.text('Draft email request'), findsNothing);
+  });
+
+  testWidgets('saved approved request activates this browser without a code', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      'cluttercash.betaAccessRequestId': 'request-123',
+      'cluttercash.betaAccessRequestToken':
+          'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BetaInviteRequestScreen(
+          checkStatus: (_) async => BetaAccessStatus.approved,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Access active'), findsOneWidget);
+    expect(find.textContaining('No code or email is needed'), findsOneWidget);
+    expect(find.text('Check approval status'), findsNothing);
   });
 
   testWidgets('live scan success replaces loading with the real result', (
@@ -266,7 +293,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Privacy & beta terms'), findsOneWidget);
-    expect(find.text('Free invited beta'), findsOneWidget);
+    expect(find.text('Free beta'), findsOneWidget);
     expect(find.textContaining('Effective September 9, 2026'), findsOneWidget);
     await tester.drag(find.byType(ListView), const Offset(0, -1200));
     await tester.pumpAndSettle();
