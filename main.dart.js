@@ -12081,7 +12081,7 @@ case 4:s=l.a
 s===$&&A.a()
 s=A.bq(s,200)
 r=A.bq(A.a37(l,B.pi,B.Ka),24)
-q=A.bq(A.a37(l,B.pi,B.KK),32)
+q=A.bq(A.a37(l,B.pi,B.KL),32)
 p=A.bq(l.a,10)
 o=A.bq(l.a,12)
 l.d===$&&A.a()
@@ -29870,7 +29870,7 @@ A.oI.prototype={
 H(){return"CanvasKitVariant."+this.b}}
 A.a4P.prototype={
 gmF(){var s=this.b,r=s==null?null:s.canvasKitVariant
-return A.aNm(B.KE,r==null?"auto":r)},
+return A.aNm(B.KF,r==null?"auto":r)},
 gHE(){var s,r=this.b
 if(r==null)s=null
 else{r=r.canvasKitMaximumSurfaces
@@ -44084,7 +44084,7 @@ I(a){var s=null,r=A.aBB(B.al,s,B.ad,B.by,B.ad,B.dv),q=A.aCg(B.ah,B.k,B.Sh,new A.
 return new A.D_(B.nn,new A.Ai(B.a_O,"ClutterCash",A.vk(s,new A.oJ(s,B.dv,s,s,0,s,new A.cB(A.cF(24),B.r)),r,new A.tL(q),"sans-serif",B.bK,B.Yo,!0),!1,s),s)}}
 A.Qm.prototype={
 I(a){var s=null,r=A.aM("Point at the mess.",s,s,s,A.U(a).ok.a,s,s),q=A.U(a).ok.a
-return A.lu(s,A.fo(!0,A.ec(new A.d9(B.jt,A.Cr(A.dh(A.c([B.a_X,B.Sv,B.a0m,B.b8,r,A.aM("Find the money.",s,s,s,q==null?s:q.bQ(B.ad),s,s),B.iC,A.aM("Scan a shelf, closet, or garage. We\u2019ll spot what may be worth selling\u2014and tell you what deserves your time.",s,s,s,A.U(a).ok.y,s,s),B.Sr,B.a0s,B.iD,A.pa(B.HU,B.Zi,new A.ajH(a)),A.ayO(B.I8,B.YK,new A.ajI(a)),A.ayO(B.I2,B.Z7,new A.ajJ(a)),A.ayO(B.I6,B.ma,new A.ajK(a)),B.lV,B.Qj,B.Su,B.Qh],t.p),B.bn,B.y,B.G),s,B.GB),s),s,s),B.a1,!0))}}
+return A.lu(s,A.fo(!0,A.ec(new A.d9(B.jt,A.Cr(A.dh(A.c([B.a_X,B.Sv,B.a0m,B.b8,r,A.aM("Find the money.",s,s,s,q==null?s:q.bQ(B.ad),s,s),B.iC,A.aM("Scan a shelf, closet, or garage. We\u2019ll spot what may be worth selling\u2014and tell you what deserves your time.",s,s,s,A.U(a).ok.y,s,s),B.Sr,B.a0s,B.iD,A.pa(B.HU,B.Zg,new A.ajH(a)),A.ayO(B.I8,B.YK,new A.ajI(a)),A.ayO(B.I2,B.Z6,new A.ajJ(a)),A.ayO(B.I6,B.ma,new A.ajK(a)),B.lV,B.Qj,B.Su,B.Qh],t.p),B.bn,B.y,B.G),s,B.GB),s),s,s),B.a1,!0))}}
 A.ajH.prototype={
 $0(){var s=A.f0(new A.ajG(),null,t.z)
 return A.cr(this.a,!1).fe(s)},
@@ -44115,7 +44115,7 @@ $1(a){return B.mS},
 $S:127}
 A.t0.prototype={
 I(a){var s=null
-return A.lu(A.ow(s,s,s,!0,!0,B.bK,s,1,s,s,s,!1,s,!1,s,s,s,s,!0,s,s,s,s,s,B.ma,s,s,s,1,s,!0),A.fo(!0,A.ec(new A.d9(B.Cc,A.aD3(B.KM,B.GA),s),s,s),B.a1,!0))}}
+return A.lu(A.ow(s,s,s,!0,!0,B.bK,s,1,s,s,s,!1,s,!1,s,s,s,s,!0,s,s,s,s,s,B.ma,s,s,s,1,s,!0),A.fo(!0,A.ec(new A.d9(B.Cc,A.aD3(B.KD,B.GA),s),s,s),B.a1,!0))}}
 A.ja.prototype={
 I(a){var s=null
 return new A.bQ(B.Gd,A.dh(A.c([A.aM(this.c,s,s,s,B.XJ,s,s),B.iE,A.aM(this.d,s,s,s,B.B0,s,s)],t.p),B.aI,B.y,B.G),s)}}
@@ -44182,7 +44182,7 @@ case 5:case 1:return A.K(q,r)}})
 return A.L($async$pN,r)},
 I(a){var s,r=this,q=null,p=A.c([],t.p)
 if(J.xh(r.e))p.push(A.LR(q,q,B.HV,q,q,r.ga7L(),q,q,"Delete all projects"))
-p=A.ow(p,q,q,!0,!0,B.bK,q,1,q,q,q,!1,q,!1,q,q,q,q,!0,q,q,q,q,q,B.Z4,q,q,q,1,q,!0)
+p=A.ow(p,q,q,!0,!0,B.bK,q,1,q,q,q,!1,q,!1,q,q,q,q,!0,q,q,q,q,q,B.Z3,q,q,q,1,q,!0)
 if(r.f)s=B.DE
 else s=J.op(r.e)?B.a0i:A.aOm(new A.ard(r),J.cz(r.e),B.Gs,new A.are())
 return A.lu(p,A.fo(!0,A.ec(new A.d9(B.ju,s,q),q,q),B.a1,!0))}}
@@ -44197,7 +44197,7 @@ $1(a){return new A.nf(this.a,this.b,null)},
 $S:128}
 A.ar8.prototype={
 $1(a){var s=null,r=A.aM("Delete \u201c"+this.a.b+"\u201d from this device? This cannot be undone.",s,s,s,s,s,s)
-return A.a_M(A.c([A.hu(B.fC,new A.ar6(a),s),A.za(B.Z9,new A.ar7(a),s)],t.p),r,B.YU)},
+return A.a_M(A.c([A.hu(B.fC,new A.ar6(a),s),A.za(B.Z8,new A.ar7(a),s)],t.p),r,B.YU)},
 $S:65}
 A.ar6.prototype={
 $0(){A.cr(this.a,!1).hL(!1)
@@ -44208,7 +44208,7 @@ $0(){A.cr(this.a,!1).hL(!0)
 return null},
 $S:0}
 A.ar4.prototype={
-$1(a){return A.a_M(A.c([A.hu(B.fC,new A.ar2(a),null),A.za(B.YD,new A.ar3(a),null)],t.p),B.YO,B.Z3)},
+$1(a){return A.a_M(A.c([A.hu(B.fC,new A.ar2(a),null),A.za(B.YD,new A.ar3(a),null)],t.p),B.YO,B.Z2)},
 $S:65}
 A.ar2.prototype={
 $0(){A.cr(this.a,!1).hL(!1)
@@ -44240,7 +44240,7 @@ A.Rj.prototype={
 I(a){return B.Qk}}
 A.Tl.prototype={
 I(a){var s=null,r=A.cF(28)
-return A.dC(s,A.k1(B.cp,A.c([B.zm,A.lj(s,new A.rA("VINTAGE CAMERA","$140\u2013$260",B.by,s),s,s,17,s,16,s),A.lj(s,new A.rA("TOOL SET","$75\u2013$110",B.h0,s),s,s,s,16,89,s),A.lj(17,A.dC(s,B.Qi,B.q,s,new A.c5(B.k,s,s,A.cF(17),s,s,B.X),s,s,s,B.Go,s,s,s),s,s,18,18,s,s)],t.p),B.M,B.c1),B.q,s,new A.c5(B.ah,s,s,r,B.KI,s,B.X),s,225,s,s,s,s,s)}}
+return A.dC(s,A.k1(B.cp,A.c([B.zm,A.lj(s,new A.rA("VINTAGE CAMERA","$140\u2013$260",B.by,s),s,s,17,s,16,s),A.lj(s,new A.rA("TOOL SET","$75\u2013$110",B.h0,s),s,s,s,16,89,s),A.lj(17,A.dC(s,B.Qi,B.q,s,new A.c5(B.k,s,s,A.cF(17),s,s,B.X),s,s,s,B.Go,s,s,s),s,s,18,18,s,s)],t.p),B.M,B.c1),B.q,s,new A.c5(B.ah,s,s,r,B.KJ,s,B.X),s,225,s,s,s,s,s)}}
 A.Rz.prototype={
 aD(a,b){var s,r,q,p
 $.a2()
@@ -44295,7 +44295,7 @@ return A.L($async$xm,r)},
 Nf(a,b){return A.AK(a,A.f0(new A.a0T(b),null,t.z))},
 a5O(a){return this.Nf(a,null)},
 I(a){var s=null,r=A.ow(s,s,s,!0,!0,B.bK,s,1,s,s,s,!1,s,!1,s,s,B.ek,s,!0,s,s,s,s,s,B.YN,s,s,s,1,s,!0),q=A.cF(32),p=t.p
-return A.lu(r,A.fo(!0,A.ec(new A.d9(B.jt,A.Cr(A.dh(A.c([A.dC(s,A.k1(B.a_,A.c([B.I9,A.acG(0,new A.bQ(B.GF,A.is(s,s,s,new A.Yx(s),B.x),s)),B.Pw],p),B.M,B.c1),B.q,s,new A.c5(B.ah,s,s,q,s,s,B.X),s,225,s,s,s,s,s),B.iD,A.aM("One wide photo works best",s,s,s,A.U(a).ok.d,B.ax,s),B.bu,A.aM("Avoid faces, mail, keys, medication, or anything private. Estimates are not appraisals.",s,s,s,A.U(a).ok.z,B.ax,s),B.e5,A.pa(B.oV,B.B3,new A.a0Z(this,a)),B.As,A.abN(B.I_,B.YR,new A.a1_(this,a),A.aP4(s,s,s,s,s,s,s,s,s,s,s,B.Sg,s,s,new A.cB(A.cF(18),B.r),B.C6,s,s,s,s)),B.bC,A.hu(B.Zc,new A.a10(this,a),s)],p),B.bn,B.y,B.G),s,B.Gx),s),s,s),B.a1,!0))}}
+return A.lu(r,A.fo(!0,A.ec(new A.d9(B.jt,A.Cr(A.dh(A.c([A.dC(s,A.k1(B.a_,A.c([B.I9,A.acG(0,new A.bQ(B.GF,A.is(s,s,s,new A.Yx(s),B.x),s)),B.Pw],p),B.M,B.c1),B.q,s,new A.c5(B.ah,s,s,q,s,s,B.X),s,225,s,s,s,s,s),B.iD,A.aM("One wide photo works best",s,s,s,A.U(a).ok.d,B.ax,s),B.bu,A.aM("Avoid faces, mail, keys, medication, or anything private. Estimates are not appraisals.",s,s,s,A.U(a).ok.z,B.ax,s),B.e5,A.pa(B.oV,B.B3,new A.a0Z(this,a)),B.As,A.abN(B.I_,B.YR,new A.a1_(this,a),A.aP4(s,s,s,s,s,s,s,s,s,s,s,B.Sg,s,s,new A.cB(A.cF(18),B.r),B.C6,s,s,s,s)),B.bC,A.hu(B.Za,new A.a10(this,a),s)],p),B.bn,B.y,B.G),s,B.Gx),s),s,s),B.a1,!0))}}
 A.a0Y.prototype={
 $1(a){return A.a_M(A.c([A.hu(B.fC,new A.a0V(a),null),A.hu(B.ma,new A.a0W(a),null),A.za(B.YP,new A.a0X(a),null)],t.p),B.YG,B.Z0)},
 $S:65}
@@ -44444,7 +44444,7 @@ break}p.ae(new A.akX(p))
 p.a.c.$0()
 case 1:return A.K(q,r)}})
 return A.L($async$o0,r)},
-I(a){var s=null,r=A.ow(s,s,s,!0,!0,B.bK,s,1,s,s,s,!1,s,!1,s,s,B.ek,s,!0,s,s,s,s,s,s,s,s,s,1,s,!0),q=t.p,p=A.c([B.a0n,B.bu,A.aM("Enter your beta code",s,s,s,A.U(a).ok.d,s,s),B.bu,B.YX,B.e5,A.qS(!1,B.bL,this.d,B.IA,!1,s,B.fy),B.iB,A.za(B.Z2,this.gGg(),s),A.hu(B.YF,new A.akZ(a),s)],q),o=this.e
+I(a){var s=null,r=A.ow(s,s,s,!0,!0,B.bK,s,1,s,s,s,!1,s,!1,s,s,B.ek,s,!0,s,s,s,s,s,s,s,s,s,1,s,!0),q=t.p,p=A.c([B.a0n,B.bu,A.aM("Enter your beta code",s,s,s,A.U(a).ok.d,s,s),B.bu,B.YX,B.e5,A.qS(!1,B.bL,this.d,B.IA,!1,s,B.fy),B.iB,A.za(B.Z1,this.gGg(),s),A.hu(B.YF,new A.akZ(a),s)],q),o=this.e
 if(o!=null)B.b.O(p,A.c([B.b8,A.aM(o,s,s,s,B.m7,B.ax,s)],q))
 return A.lu(r,A.fo(!0,A.ec(new A.d9(B.n0,new A.bQ(B.oi,A.dh(p,B.bn,B.dL,B.G),s),s),s,s),B.a1,!0))}}
 A.akW.prototype={
@@ -44603,7 +44603,7 @@ n=A.c([B.a0l,B.bu,s,B.bu,B.YA,B.e5,r,B.b8,q,B.b8,p,B.iC,A.pa(m,A.aM(o?"Sending r
 s=k.Q
 if(s!=null)B.b.O(n,A.c([B.b8,A.aM(s,j,j,j,B.WB,B.ax,j)],l))
 n.push(B.iB)
-n.push(B.Z1)
+n.push(B.Zi)
 s=A.dh(n,B.bn,B.y,B.G)}return A.lu(i,A.fo(!0,A.ec(new A.d9(B.n0,A.Cr(s,j,B.oi),j),j,j),B.a1,!0))}}
 A.al2.prototype={
 $0(){var s=this.a
@@ -44665,7 +44665,7 @@ if(!l){n=A.cF(14)
 B.b.O(s,A.c([B.b8,A.dC(p,A.aM(m,p,p,p,B.UK,p,p),B.q,p,new A.c5(B.E4,p,p,n,p,p,B.X),p,p,p,B.Gk,p,p,p)],r))}s.push(B.e5)
 s.push(A.za(B.YV,new A.a84(q,a),p))
 s.push(B.iG)
-s.push(A.aDA(B.Ze,new A.a85(q,a)))
+s.push(A.aDA(B.Zc,new A.a85(q,a)))
 s.push(B.iG)
 s.push(A.hu(B.YL,new A.a86(a),p))
 s.push(B.bu)
@@ -44889,7 +44889,7 @@ case 1:return A.K(q,r)}})
 return A.L($async$yh,r)},
 I(a){return new A.yP(0.9,0.58,0.96,!1,new A.ap6(this,a),null)}}
 A.aoY.prototype={
-$1(a){return A.a_M(A.c([A.hu(B.fC,new A.aoW(a),null),A.pa(B.oV,B.B3,new A.aoX(a))],t.p),B.S7,B.Zd)},
+$1(a){return A.a_M(A.c([A.hu(B.fC,new A.aoW(a),null),A.pa(B.oV,B.B3,new A.aoX(a))],t.p),B.S7,B.Zb)},
 $S:65}
 A.aoW.prototype={
 $0(){A.cr(this.a,!1).hL(!1)
@@ -44948,7 +44948,7 @@ r=A.aD9(A.jH(r).b)
 p=A.jH(i.d)
 o=i.e
 n=o?m:i.gadl()
-l=A.c([l,B.Au,j,B.b8,s,B.iF,q,B.iE,B.Zj,B.e4,new A.F9(B.HA,"Best place to try: "+r,p.c,m),B.b8,A.abN(B.I0,A.aM(o?"Reading the model label\u2026":"Improve with a model-label photo",m,m,m,m,m,m),n,m)],k)
+l=A.c([l,B.Au,j,B.b8,s,B.iF,q,B.iE,B.Zh,B.e4,new A.F9(B.HA,"Best place to try: "+r,p.c,m),B.b8,A.abN(B.I0,A.aM(o?"Reading the model label\u2026":"Improve with a model-label photo",m,m,m,m,m,m),n,m)],k)
 if(i.e)B.b.O(l,A.c([B.bC,B.Jb],k))
 j=i.f
 if(j!=null){s=A.cF(14)
@@ -44960,7 +44960,7 @@ l.push(B.iE)
 A.jH(i.d)
 l.push(A.aM("Active listings show asking prices, not proven value. Completed-sale results are stronger evidence, but verify that the model, condition, accessories, and shipping terms truly match.",m,m,m,m,m,m))
 l.push(B.b8)
-l.push(A.pa(B.HR,B.Z8,new A.ap3(i)))
+l.push(A.pa(B.HR,B.Z7,new A.ap3(i)))
 l.push(B.bC)
 l.push(A.abN(B.HQ,B.Yy,new A.ap4(i),m))
 if(A.jH(i.d).b!==B.fc&&A.jH(i.d).b!==B.hU&&A.jH(i.d).b!==B.hV)B.b.O(l,A.c([B.bC,A.abN(B.Ia,A.aM("Search "+A.aD9(A.jH(i.d).b),m,m,m,m,m,m),new A.ap5(i),m)],k))
@@ -45056,7 +45056,7 @@ p=A.c([k,B.Au,j,B.bC,B.YM,B.e4,i,B.b8,s,B.bC,r,B.bu,q,B.bu,A.qS(m,B.bL,p,A.a79(m
 k=n.w
 if(k!=null)B.b.O(p,A.c([B.bu,A.aM(k,m,m,m,B.AZ,m,m)],o))
 p.push(B.e4)
-p.push(A.pa(B.Ic,B.Z6,n.gGg()))
+p.push(A.pa(B.Ic,B.Z5,n.gGg()))
 p.push(A.hu(B.fC,new A.aoU(a),m))
 return new A.bQ(new A.ah(0,0,0,l.f.d),A.fo(!0,A.Cr(A.dh(p,B.bn,B.y,B.G),m,B.Gz),B.a1,!1),m)}}
 A.aoS.prototype={
@@ -45150,7 +45150,7 @@ s.d=s.glJ().auB(this.b.a,this.c)},
 $S:0}
 A.ar1.prototype={
 $1(a){var s=null,r=A.cF(13),q=t.p,p=this.a
-return A.axq(new A.bQ(B.oh,A.dh(A.c([A.fQ(A.c([A.dC(s,A.ps(A.aGx(a.y),B.ad,s,s),B.q,s,new A.c5(B.h8,s,s,r,s,s,B.X),s,44,s,s,s,s,44),B.Ap,A.ix(A.dh(A.c([A.aM(a.b,s,s,s,B.iM,s,s),A.aM("$"+B.d.cW(a.c)+"\u2013$"+B.d.cW(a.e)+" estimate",s,s,s,B.m9,s,s)],q),B.aI,B.y,B.G),1),new A.Xa(a.x,s)],q),B.Y,B.y,B.G,0),B.At,A.fQ(A.c([A.ix(A.aDA(B.Yz,new A.aqZ(p,a)),1),B.e3,A.ix(A.za(B.Za,new A.ar_(p,a),A.aCg(B.ad,s,B.S8,s,s,s)),1),B.e3,A.ix(A.hu(B.Zh,new A.ar0(p,a),s),1)],q),B.Y,B.y,B.G,0)],q),B.aI,B.y,B.G),s),B.Gb)},
+return A.axq(new A.bQ(B.oh,A.dh(A.c([A.fQ(A.c([A.dC(s,A.ps(A.aGx(a.y),B.ad,s,s),B.q,s,new A.c5(B.h8,s,s,r,s,s,B.X),s,44,s,s,s,s,44),B.Ap,A.ix(A.dh(A.c([A.aM(a.b,s,s,s,B.iM,s,s),A.aM("$"+B.d.cW(a.c)+"\u2013$"+B.d.cW(a.e)+" estimate",s,s,s,B.m9,s,s)],q),B.aI,B.y,B.G),1),new A.Xa(a.x,s)],q),B.Y,B.y,B.G,0),B.At,A.fQ(A.c([A.ix(A.aDA(B.Yz,new A.aqZ(p,a)),1),B.e3,A.ix(A.za(B.Z9,new A.ar_(p,a),A.aCg(B.ad,s,B.S8,s,s,s)),1),B.e3,A.ix(A.hu(B.Zf,new A.ar0(p,a),s),1)],q),B.Y,B.y,B.G,0)],q),B.aI,B.y,B.G),s),B.Gb)},
 $S:433}
 A.aqZ.prototype={
 $0(){return this.a.pH(this.b,B.p4)},
@@ -50344,7 +50344,7 @@ A.vJ.prototype={
 H(){return"_CornerId."+this.b}}
 A.lU.prototype={}
 A.ud.prototype={
-l7(){var s,r,q,p=this,o=A.aUE(B.KH,new A.aav(p,p.b.gb_().X(0,p.a.gb_()))),n=p.a
+l7(){var s,r,q,p=this,o=A.aUE(B.KI,new A.aav(p,p.b.gb_().X(0,p.a.gb_()))),n=p.a
 n.toString
 s=o.a
 r=p.pK(n,s)
@@ -55197,7 +55197,7 @@ $3(a,b,c){return new A.oc(b,this.a,!1,c,null)},
 $S:202}
 A.N9.prototype={
 a5N(a){var s=t.Tr
-s=A.a0(new A.a1(B.KG,new A.abX(a),s),s.i("ar.E"))
+s=A.a0(new A.a1(B.KH,new A.abX(a),s),s.i("ar.E"))
 return s},
 j(a,b){if(b==null)return!1
 if(this===b)return!0
@@ -94912,10 +94912,10 @@ B.Je=new A.pH(2,"top")
 B.pb=new A.pH(3,"center")
 B.Jf=new A.pH(4,"bottom")
 B.pc=s([13,10],t.t)
-B.KJ=s([1373.2198709594231,-1100.4251190754821,-7.278681089101213],t.n)
+B.KK=s([1373.2198709594231,-1100.4251190754821,-7.278681089101213],t.n)
 B.Kr=s([-271.815969077903,559.6580465940733,-32.46047482791194],t.n)
 B.LB=s([1.9622899599665666,-57.173814538844006,308.7233197812385],t.n)
-B.Ji=s([B.KJ,B.Kr,B.LB],t.zg)
+B.Ji=s([B.KK,B.Kr,B.LB],t.zg)
 B.pd=s(["text","multiline","number","phone","datetime","emailAddress","url","visiblePassword","name","address","none","webSearch","twitter"],t.s)
 B.Jj=s([239,191,189],t.t)
 B.JH=s([4,9,14,19],t.t)
@@ -94927,8 +94927,8 @@ B.It=new A.jz(B.Ik,!1,0,"png")
 B.Ii=new A.kY(B.Lm,B.It,0,"png")
 B.Ln=s([71,73,70,56,55,97],t.Z)
 B.Ih=new A.kY(B.Ln,B.hB,1,"gif87a")
-B.KF=s([71,73,70,56,57,97],t.Z)
-B.Ig=new A.kY(B.KF,B.hB,2,"gif89a")
+B.KG=s([71,73,70,56,57,97],t.Z)
+B.Ig=new A.kY(B.KG,B.hB,2,"gif89a")
 B.Jk=s([255,216,255],t.Z)
 B.Il=new A.mE(2,"jpeg")
 B.Ix=new A.jz(B.Il,!1,3,"jpeg")
@@ -94974,12 +94974,12 @@ B.Lb=s([2.33888662,1.28698796],t.n)
 B.Ld=s([2.48660575,1.36351941],t.n)
 B.K8=s([2.62226596,1.44717976],t.n)
 B.Kd=s([2.7514899,1.53385819],t.n)
-B.KD=s([3.36298265,1.98288283],t.n)
+B.KE=s([3.36298265,1.98288283],t.n)
 B.Kj=s([4.08649929,2.23811846],t.n)
 B.Kv=s([4.85481134,2.47563463],t.n)
 B.Kb=s([5.62945551,2.72948597],t.n)
 B.Kh=s([6.43023796,2.98020421],t.n)
-B.pf=s([B.Kg,B.Jm,B.Lb,B.Ld,B.K8,B.Kd,B.KD,B.Kj,B.Kv,B.Kb,B.Kh],t.zg)
+B.pf=s([B.Kg,B.Jm,B.Lb,B.Ld,B.K8,B.Kd,B.KE,B.Kj,B.Kv,B.Kb,B.Kh],t.zg)
 B.jQ=new A.jn(1,"medium")
 B.nY=new A.jn(2,"high")
 B.pg=s([B.eH,B.jQ,B.nY],A.as("y<jn>"))
@@ -95037,26 +95037,6 @@ B.bE=new A.j4(1,"title")
 B.cK=new A.j4(2,"subtitle")
 B.eh=new A.j4(3,"trailing")
 B.KC=s([B.cJ,B.bE,B.cK,B.eh],A.as("y<j4>"))
-B.Dy=new A.oI(0,"auto")
-B.Dz=new A.oI(1,"full")
-B.DA=new A.oI(2,"chromium")
-B.KE=s([B.Dy,B.Dz,B.DA,B.cu],A.as("y<oI>"))
-B.b0=new A.f5(1,"fuchsia")
-B.KG=s([B.a3,B.b0,B.D,B.aR,B.ar,B.aS],A.as("y<f5>"))
-B.Bk=new A.vJ(0,"topLeft")
-B.Bn=new A.vJ(3,"bottomRight")
-B.a07=new A.lU(B.Bk,B.Bn)
-B.a0a=new A.lU(B.Bn,B.Bk)
-B.Bl=new A.vJ(1,"topRight")
-B.Bm=new A.vJ(2,"bottomLeft")
-B.a08=new A.lU(B.Bl,B.Bm)
-B.a09=new A.lU(B.Bm,B.Bl)
-B.KH=s([B.a07,B.a0a,B.a08,B.a09],A.as("y<lU>"))
-B.Ei=new A.C(0.1411764705882353,0.0784313725490196,0.13725490196078433,0.10588235294117647,B.e)
-B.NY=new A.h(0,14)
-B.Ch=new A.dU(0,B.em,B.Ei,B.NY,24)
-B.KI=s([B.Ch],t.sq)
-B.KK=s([35,30,20,25,30,35,30,25,25],t.n)
 B.Ul=new A.j(!0,B.ad,null,null,null,null,null,B.a6,null,1.1,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
 B.YC=new A.b5("Free beta",null,B.Ul,null,null,null,null,null,null)
 B.bC=new A.bC(null,8,null,null)
@@ -95065,7 +95045,7 @@ B.YS=new A.b5("Your beta privacy",null,B.WH,null,null,null,null,null,null)
 B.bu=new A.bC(null,10,null,null)
 B.aW=new A.C(1,0.38823529411764707,0.4392156862745098,0.403921568627451,B.e)
 B.B0=new A.j(!0,B.aW,null,null,null,null,null,null,null,null,null,null,1.45,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.Zb=new A.b5("Effective September 9, 2026. This free beta allows three no-registration analyses per browser/device, followed by optional manually approved access in that same browser. Existing invite codes remain supported. There are no subscriptions, scan packs, payments, or in-app purchases.",null,B.B0,null,null,null,null,null,null)
+B.Zj=new A.b5("Effective September 10, 2026. This free beta allows three no-registration analyses per browser/device, followed by optional manually approved access in that same browser. Existing invite codes remain supported. There are no subscriptions, scan packs, payments, or in-app purchases.",null,B.B0,null,null,null,null,null,null)
 B.iD=new A.bC(null,22,null,null)
 B.a1C=new A.ja("What this app is\u2014and is not","ClutterCash helps you identify visible items that may be worth selling and provides potential selling-value ranges and marketplace research links. It is not an appraisal, authentication service, marketplace, financial advisor, transaction tracker, listing tool, or guarantee of a sale. Verify model, condition, accessories, price, and marketplace rules before posting.",null)
 B.a1B=new A.ja("Photos and AI processing","When you choose a live scan or model-label photo and accept the upload notice, the app sends the image through ClutterCash\u2019s Cloudflare Worker to Google Gemini. The Worker processes image bytes in memory and is designed not to write them to disk. Google may review free-tier submissions and use them to improve its products. Never upload faces, mail, addresses, keys, medication, documents, account information, or other sensitive/private content.",null)
@@ -95079,8 +95059,28 @@ B.UE=new A.j(!0,B.ad,null,null,null,null,16,B.a6,null,null,null,null,null,null,n
 B.Yx=new A.b5("cluttercash.help@gmail.com",null,B.UE,null,null,null,null,null,null)
 B.b8=new A.bC(null,12,null,null)
 B.m9=new A.j(!0,B.aW,null,null,null,null,12,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.Zg=new A.b5("Full notice: docs/BETA_PRIVACY_AND_TERMS.md",null,B.m9,null,null,null,null,null,null)
-B.KM=s([B.YC,B.bC,B.YS,B.bu,B.Zb,B.iD,B.a1C,B.a1B,B.a1E,B.a1z,B.a1x,B.a1y,B.a1D,B.a1A,B.Yx,B.b8,B.Zg],t.p)
+B.Ze=new A.b5("Full notice: docs/BETA_PRIVACY_AND_TERMS.md",null,B.m9,null,null,null,null,null,null)
+B.KD=s([B.YC,B.bC,B.YS,B.bu,B.Zj,B.iD,B.a1C,B.a1B,B.a1E,B.a1z,B.a1x,B.a1y,B.a1D,B.a1A,B.Yx,B.b8,B.Ze],t.p)
+B.Dy=new A.oI(0,"auto")
+B.Dz=new A.oI(1,"full")
+B.DA=new A.oI(2,"chromium")
+B.KF=s([B.Dy,B.Dz,B.DA,B.cu],A.as("y<oI>"))
+B.b0=new A.f5(1,"fuchsia")
+B.KH=s([B.a3,B.b0,B.D,B.aR,B.ar,B.aS],A.as("y<f5>"))
+B.Bk=new A.vJ(0,"topLeft")
+B.Bn=new A.vJ(3,"bottomRight")
+B.a07=new A.lU(B.Bk,B.Bn)
+B.a0a=new A.lU(B.Bn,B.Bk)
+B.Bl=new A.vJ(1,"topRight")
+B.Bm=new A.vJ(2,"bottomLeft")
+B.a08=new A.lU(B.Bl,B.Bm)
+B.a09=new A.lU(B.Bm,B.Bl)
+B.KI=s([B.a07,B.a0a,B.a08,B.a09],A.as("y<lU>"))
+B.Ei=new A.C(0.1411764705882353,0.0784313725490196,0.13725490196078433,0.10588235294117647,B.e)
+B.NY=new A.h(0,14)
+B.Ch=new A.dU(0,B.em,B.Ei,B.NY,24)
+B.KJ=s([B.Ch],t.sq)
+B.KL=s([35,30,20,25,30,35,30,25,25],t.n)
 B.KP=s(["click","scroll"],t.s)
 B.Co=new A.rS()
 B.ie=new A.OF(1,"page")
@@ -95748,7 +95748,7 @@ B.Km=s([B.bN,null,null,B.d5],t.L)
 B.Lu=s([B.bZ,null,null,B.d6],t.L)
 B.Lg=s([B.l2,null,null,B.l9],t.L)
 B.K0=s([B.f5,B.f5,B.hO,null],t.L)
-B.KL=s([B.aY,null,null,B.d2],t.L)
+B.KM=s([B.aY,null,null,B.d2],t.L)
 B.Kn=s([B.d_,null,null,B.f8],t.L)
 B.JU=s([B.hK,null,null,B.l7],t.L)
 B.Ko=s([B.d0,null,null,B.fa],t.L)
@@ -95757,7 +95757,7 @@ B.K1=s([B.f7,B.f7,B.hQ,null],t.L)
 B.Kp=s([B.f2,null,null,B.f9],t.L)
 B.KT=s([B.f3,null,null,B.fb],t.L)
 B.K2=s([B.cy,B.cy,B.d1,null],t.L)
-B.Ni=new A.du(["*",B.JR,"+",B.L9,"-",B.Kf,".",B.KB,"/",B.Jg,"0",B.Lo,"1",B.Lj,"2",B.JY,"3",B.Lv,"4",B.Li,"5",B.JV,"6",B.Jl,"7",B.K6,"8",B.La,"9",B.Lc,"Alt",B.K_,"AltGraph",B.Lp,"ArrowDown",B.Kk,"ArrowLeft",B.Kl,"ArrowRight",B.Km,"ArrowUp",B.Lu,"Clear",B.Lg,"Control",B.K0,"Delete",B.KL,"End",B.Kn,"Enter",B.JU,"Home",B.Ko,"Insert",B.Lh,"Meta",B.K1,"PageDown",B.Kp,"PageUp",B.KT,"Shift",B.K2],A.as("du<t,S<f?>>"))
+B.Ni=new A.du(["*",B.JR,"+",B.L9,"-",B.Kf,".",B.KB,"/",B.Jg,"0",B.Lo,"1",B.Lj,"2",B.JY,"3",B.Lv,"4",B.Li,"5",B.JV,"6",B.Jl,"7",B.K6,"8",B.La,"9",B.Lc,"Alt",B.K_,"AltGraph",B.Lp,"ArrowDown",B.Kk,"ArrowLeft",B.Kl,"ArrowRight",B.Km,"ArrowUp",B.Lu,"Clear",B.Lg,"Control",B.K0,"Delete",B.KM,"End",B.Kn,"Enter",B.JU,"Home",B.Ko,"Insert",B.Lh,"Meta",B.K1,"PageDown",B.Kp,"PageUp",B.KT,"Shift",B.K2],A.as("du<t,S<f?>>"))
 B.NR={KeyA:0,KeyB:1,KeyC:2,KeyD:3,KeyE:4,KeyF:5,KeyG:6,KeyH:7,KeyI:8,KeyJ:9,KeyK:10,KeyL:11,KeyM:12,KeyN:13,KeyO:14,KeyP:15,KeyQ:16,KeyR:17,KeyS:18,KeyT:19,KeyU:20,KeyV:21,KeyW:22,KeyX:23,KeyY:24,KeyZ:25,Digit1:26,Digit2:27,Digit3:28,Digit4:29,Digit5:30,Digit6:31,Digit7:32,Digit8:33,Digit9:34,Digit0:35,Minus:36,Equal:37,BracketLeft:38,BracketRight:39,Backslash:40,Semicolon:41,Quote:42,Backquote:43,Comma:44,Period:45,Slash:46}
 B.vw=new A.bI(B.NR,["a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z","1","2","3","4","5","6","7","8","9","0","-","=","[","]","\\",";","'","`",",",".","/"],t.li)
 B.NO={Abort:0,Again:1,AltLeft:2,AltRight:3,ArrowDown:4,ArrowLeft:5,ArrowRight:6,ArrowUp:7,AudioVolumeDown:8,AudioVolumeMute:9,AudioVolumeUp:10,Backquote:11,Backslash:12,Backspace:13,BracketLeft:14,BracketRight:15,BrightnessDown:16,BrightnessUp:17,BrowserBack:18,BrowserFavorites:19,BrowserForward:20,BrowserHome:21,BrowserRefresh:22,BrowserSearch:23,BrowserStop:24,CapsLock:25,Comma:26,ContextMenu:27,ControlLeft:28,ControlRight:29,Convert:30,Copy:31,Cut:32,Delete:33,Digit0:34,Digit1:35,Digit2:36,Digit3:37,Digit4:38,Digit5:39,Digit6:40,Digit7:41,Digit8:42,Digit9:43,DisplayToggleIntExt:44,Eject:45,End:46,Enter:47,Equal:48,Escape:49,Esc:50,F1:51,F10:52,F11:53,F12:54,F13:55,F14:56,F15:57,F16:58,F17:59,F18:60,F19:61,F2:62,F20:63,F21:64,F22:65,F23:66,F24:67,F3:68,F4:69,F5:70,F6:71,F7:72,F8:73,F9:74,Find:75,Fn:76,FnLock:77,GameButton1:78,GameButton10:79,GameButton11:80,GameButton12:81,GameButton13:82,GameButton14:83,GameButton15:84,GameButton16:85,GameButton2:86,GameButton3:87,GameButton4:88,GameButton5:89,GameButton6:90,GameButton7:91,GameButton8:92,GameButton9:93,GameButtonA:94,GameButtonB:95,GameButtonC:96,GameButtonLeft1:97,GameButtonLeft2:98,GameButtonMode:99,GameButtonRight1:100,GameButtonRight2:101,GameButtonSelect:102,GameButtonStart:103,GameButtonThumbLeft:104,GameButtonThumbRight:105,GameButtonX:106,GameButtonY:107,GameButtonZ:108,Help:109,Home:110,Hyper:111,Insert:112,IntlBackslash:113,IntlRo:114,IntlYen:115,KanaMode:116,KeyA:117,KeyB:118,KeyC:119,KeyD:120,KeyE:121,KeyF:122,KeyG:123,KeyH:124,KeyI:125,KeyJ:126,KeyK:127,KeyL:128,KeyM:129,KeyN:130,KeyO:131,KeyP:132,KeyQ:133,KeyR:134,KeyS:135,KeyT:136,KeyU:137,KeyV:138,KeyW:139,KeyX:140,KeyY:141,KeyZ:142,KeyboardLayoutSelect:143,Lang1:144,Lang2:145,Lang3:146,Lang4:147,Lang5:148,LaunchApp1:149,LaunchApp2:150,LaunchAssistant:151,LaunchControlPanel:152,LaunchMail:153,LaunchScreenSaver:154,MailForward:155,MailReply:156,MailSend:157,MediaFastForward:158,MediaPause:159,MediaPlay:160,MediaPlayPause:161,MediaRecord:162,MediaRewind:163,MediaSelect:164,MediaStop:165,MediaTrackNext:166,MediaTrackPrevious:167,MetaLeft:168,MetaRight:169,MicrophoneMuteToggle:170,Minus:171,NonConvert:172,NumLock:173,Numpad0:174,Numpad1:175,Numpad2:176,Numpad3:177,Numpad4:178,Numpad5:179,Numpad6:180,Numpad7:181,Numpad8:182,Numpad9:183,NumpadAdd:184,NumpadBackspace:185,NumpadClear:186,NumpadClearEntry:187,NumpadComma:188,NumpadDecimal:189,NumpadDivide:190,NumpadEnter:191,NumpadEqual:192,NumpadMemoryAdd:193,NumpadMemoryClear:194,NumpadMemoryRecall:195,NumpadMemoryStore:196,NumpadMemorySubtract:197,NumpadMultiply:198,NumpadParenLeft:199,NumpadParenRight:200,NumpadSubtract:201,Open:202,PageDown:203,PageUp:204,Paste:205,Pause:206,Period:207,Power:208,PrintScreen:209,PrivacyScreenToggle:210,Props:211,Quote:212,Resume:213,ScrollLock:214,Select:215,SelectTask:216,Semicolon:217,ShiftLeft:218,ShiftRight:219,ShowAllWindows:220,Slash:221,Sleep:222,Space:223,Super:224,Suspend:225,Tab:226,Turbo:227,Undo:228,WakeUp:229,ZoomToggle:230}
@@ -96179,8 +96179,8 @@ B.a03=new A.Rz(null)
 B.Fm=new A.tx(B.a03,null,B.x,null,null)
 B.zm=new A.li(0,0,0,0,null,null,B.Fm,null)
 B.m6=new A.j(!0,B.P,null,null,null,null,null,B.bU,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.Z5=new A.b5("Fit one shelf or corner in frame",null,B.m6,null,null,null,null,null,null)
-B.Pw=new A.li(null,null,null,24,null,null,B.Z5,null)
+B.Z4=new A.b5("Fit one shelf or corner in frame",null,B.m6,null,null,null,null,null,null)
+B.Pw=new A.li(null,null,null,24,null,null,B.Z4,null)
 B.zn=new A.qg(0,"platformDefault")
 B.zo=new A.qg(1,"inAppWebView")
 B.zp=new A.qg(2,"inAppBrowserView")
@@ -96282,9 +96282,9 @@ B.Sp=new A.bC(42,42,B.HT,null)
 B.Ft=new A.yx(B.Ce,B.cv,B.Sp,null)
 B.Sl=new A.bC(11,null,null,null)
 B.Uk=new A.j(!0,B.ah,null,null,null,null,21,B.a6,null,-0.6,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.Zf=new A.b5("ClutterCash",null,B.Uk,null,null,null,null,null,null)
+B.Zd=new A.b5("ClutterCash",null,B.Uk,null,null,null,null,null,null)
 B.a1h=new A.ru("BETA",B.ad,null)
-B.L8=s([B.Ft,B.Sl,B.Zf,B.lY,B.a1h],t.p)
+B.L8=s([B.Ft,B.Sl,B.Zd,B.lY,B.a1h],t.p)
 B.Qk=new A.lt(B.ak,B.y,B.G,B.Y,null,B.bk,null,0,B.L8,null)
 B.HY=new A.cq(B.oR,19,B.aW,null,null)
 B.So=new A.bC(9,null,null,null)
@@ -96997,23 +96997,23 @@ B.YZ=new A.b5("I need to correct this item",null,null,null,null,null,null,null,n
 B.WV=new A.j(!0,B.aW,null,null,null,null,12,B.bU,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
 B.Z_=new A.b5("Demo values do not describe your uploaded photo.",null,B.WV,B.ax,null,null,null,null,null)
 B.Z0=new A.b5("Free AI beta privacy",null,null,null,null,null,null,null,null)
-B.UV=new A.j(!0,B.aW,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.Z1=new A.b5("Your email is used only to review and respond to this beta request. Need help? cluttercash.help@gmail.com",null,B.UV,B.ax,null,null,null,null,null)
-B.Z2=new A.b5("Save beta code",null,null,null,null,null,null,null,null)
-B.Z3=new A.b5("Delete all saved projects?",null,null,null,null,null,null,null,null)
-B.Z4=new A.b5("Your projects",null,B.m8,null,null,null,null,null,null)
-B.Z6=new A.b5("Save correction",null,null,null,null,null,null,null,null)
-B.Z7=new A.b5("Open saved projects",null,null,null,null,null,null,null,null)
-B.Z8=new A.b5("Sold results",null,null,null,null,null,null,null,null)
-B.Z9=new A.b5("Delete project",null,null,null,null,null,null,null,null)
-B.Za=new A.b5("Sold",null,null,null,null,null,null,null,null)
+B.Z1=new A.b5("Save beta code",null,null,null,null,null,null,null,null)
+B.Z2=new A.b5("Delete all saved projects?",null,null,null,null,null,null,null,null)
+B.Z3=new A.b5("Your projects",null,B.m8,null,null,null,null,null,null)
+B.Z5=new A.b5("Save correction",null,null,null,null,null,null,null,null)
+B.Z6=new A.b5("Open saved projects",null,null,null,null,null,null,null,null)
+B.Z7=new A.b5("Sold results",null,null,null,null,null,null,null,null)
+B.Z8=new A.b5("Delete project",null,null,null,null,null,null,null,null)
+B.Z9=new A.b5("Sold",null,null,null,null,null,null,null,null)
 B.B3=new A.b5("Open camera",null,null,null,null,null,null,null,null)
-B.Zc=new A.b5("Try the demo room",null,B.B2,null,null,null,null,null,null)
-B.Zd=new A.b5("Photograph the model label",null,null,null,null,null,null,null,null)
-B.Ze=new A.b5("See a clearly labeled demo result",null,null,null,null,null,null,null,null)
-B.Zh=new A.b5("Donate",null,null,null,null,null,null,null,null)
-B.Zi=new A.b5("Scan my space",null,null,null,null,null,null,null,null)
-B.Zj=new A.b5("Estimate\u2014not an appraisal or live marketplace result.",null,B.AY,null,null,null,null,null,null)
+B.Za=new A.b5("Try the demo room",null,B.B2,null,null,null,null,null,null)
+B.Zb=new A.b5("Photograph the model label",null,null,null,null,null,null,null,null)
+B.Zc=new A.b5("See a clearly labeled demo result",null,null,null,null,null,null,null,null)
+B.Zf=new A.b5("Donate",null,null,null,null,null,null,null,null)
+B.Zg=new A.b5("Scan my space",null,null,null,null,null,null,null,null)
+B.Zh=new A.b5("Estimate\u2014not an appraisal or live marketplace result.",null,B.AY,null,null,null,null,null,null)
+B.UV=new A.j(!0,B.aW,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
+B.Zi=new A.b5("Your email is used only to review this beta request. Approval is delivered privately in this browser. Need help? cluttercash.help@gmail.com",null,B.UV,B.ax,null,null,null,null,null)
 B.Eu=new A.C(0.5411764705882353,1,1,1,B.e)
 B.Ui=new A.j(!0,B.Eu,null,null,null,null,12,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
 B.Zk=new A.b5("Best guess\u2014not an appraisal. Verify high-value items before selling.",null,B.Ui,null,null,null,null,null,null)
