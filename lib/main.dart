@@ -307,7 +307,7 @@ class BetaTermsScreen extends StatelessWidget {
               ),
               SizedBox(height: 10),
               Text(
-                'Effective September 9, 2026. This free beta allows three no-registration analyses per browser/device, followed by optional manually approved access in that same browser. Existing invite codes remain supported. There are no subscriptions, scan packs, payments, or in-app purchases.',
+                'Effective September 10, 2026. This free beta allows three no-registration analyses per browser/device, followed by optional manually approved access in that same browser. Existing invite codes remain supported. There are no subscriptions, scan packs, payments, or in-app purchases.',
                 style: TextStyle(color: _muted, height: 1.45),
               ),
               SizedBox(height: 22),
@@ -1504,7 +1504,7 @@ class _BetaInviteRequestScreenState extends State<BetaInviteRequestScreen> {
                       ],
                       const SizedBox(height: 14),
                       const Text(
-                        'Your email is used only to review and respond to this beta request. Need help? cluttercash.help@gmail.com',
+                        'Your email is used only to review this beta request. Approval is delivered privately in this browser. Need help? cluttercash.help@gmail.com',
                         textAlign: TextAlign.center,
                         style: TextStyle(color: _muted),
                       ),

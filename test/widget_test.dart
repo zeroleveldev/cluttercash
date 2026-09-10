@@ -294,7 +294,7 @@ void main() {
 
     expect(find.text('Privacy & beta terms'), findsOneWidget);
     expect(find.text('Free beta'), findsOneWidget);
-    expect(find.textContaining('Effective September 9, 2026'), findsOneWidget);
+    expect(find.textContaining('Effective September 10, 2026'), findsOneWidget);
     await tester.drag(find.byType(ListView), const Offset(0, -1200));
     await tester.pumpAndSettle();
     expect(find.textContaining('event names'), findsOneWidget);

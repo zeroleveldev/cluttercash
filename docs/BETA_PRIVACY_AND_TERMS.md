@@ -1,6 +1,6 @@
 # ClutterCash Free Beta — Privacy Notice & Terms
 
-**Effective date:** September 9, 2026
+**Effective date:** September 10, 2026
 **Support and feedback:** [cluttercash.help@gmail.com](mailto:cluttercash.help@gmail.com)
 
 > This plain-language notice applies to the free ClutterCash beta: three no-registration analyses per browser/device, followed by optional manually approved continued access on that same browser/device. It is not the policy for a future paid or store release.
