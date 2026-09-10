@@ -245,14 +245,21 @@ export function createHandler({
       return json({ error: 'Image must be between 1 byte and 8 MB.' }, 413, cors);
     }
 
-    const quota = await reserveProviderBudget(env, inviteHash, now());
+    const quota = await reserveProviderBudget(
+      env,
+      inviteHash,
+      now(),
+      ownerInviteAllowed(env, inviteHash),
+    );
     if (!quota.available) {
       if (quota.shouldAlert) {
         await alertSender({ event: 'daily_budget_reached' }, env);
       }
       return json({ error: quota.reason === 'anonymous_limit'
-        ? 'You have used your 3 free analyses. Request beta access for a code to continue.'
-        : 'Live analysis is temporarily unavailable. Please try again later.' }, quota.status, cors);
+        ? 'You have used all 3 free analyses on this browser. Request continued beta access.'
+        : quota.reason === 'invite_limit'
+          ? 'You have used all 3 analyses in your current beta allowance. Each analysis becomes available again 7 days after it was used.'
+          : 'Live analysis is temporarily unavailable. Please try again later.' }, quota.status, cors);
     }
 
     let taskPrompt = prompt;
@@ -314,6 +321,17 @@ function betaAccessConfigured(env) {
   try {
     const codes = JSON.parse(env.BETA_INVITE_CODE_HASHES || '[]');
     return Array.isArray(codes) && codes.length > 0 && codes.every((code) => /^[a-f0-9]{64}$/i.test(code));
+  } catch {
+    return false;
+  }
+}
+
+function ownerInviteAllowed(env, inviteHash) {
+  try {
+    const hashes = JSON.parse(env.BETA_OWNER_INVITE_CODE_HASHES || '[]');
+    return Array.isArray(hashes)
+      && hashes.every((hash) => /^[a-f0-9]{64}$/i.test(hash))
+      && hashes.some((hash) => hash.toLowerCase() === inviteHash.toLowerCase());
   } catch {
     return false;
   }
@@ -520,7 +538,7 @@ async function reserveAccessRequest(env, email, ip, timestamp) {
   }
 }
 
-async function reserveProviderBudget(env, inviteHash, timestamp) {
+async function reserveProviderBudget(env, inviteHash, timestamp, unlimited = false) {
   if (!env.BETA_USAGE_LIMITER?.idFromName || !env.BETA_USAGE_LIMITER?.get) {
     return { available: false, status: 503 };
   }
@@ -536,6 +554,7 @@ async function reserveProviderBudget(env, inviteHash, timestamp) {
         inviteLimit: positiveInteger(env.BETA_WEEKLY_REQUEST_LIMIT),
         inviteWindowMs: INVITE_WINDOW_MS,
         anonymous: inviteHash.startsWith('device:'),
+        ...(unlimited ? { unlimited: true } : {}),
         budgetMicroUsd: positiveInteger(env.BETA_DAILY_BUDGET_MICRO_USD),
         requestCostMicroUsd: positiveInteger(env.GEMINI_MAX_REQUEST_COST_MICRO_USD),
       }),
@@ -761,6 +780,7 @@ export class BetaUsageLimiter {
     const inviteLimit = positiveInteger(input?.inviteLimit);
     const inviteWindowMs = positiveInteger(input?.inviteWindowMs);
     const anonymous = input?.anonymous === true;
+    const unlimited = input?.unlimited === true && !anonymous;
     const budgetMicroUsd = positiveInteger(input?.budgetMicroUsd);
     const requestCostMicroUsd = positiveInteger(input?.requestCostMicroUsd);
     if (!day || !timestamp || !inviteHash || !inviteLimit || !inviteWindowMs || !budgetMicroUsd || !requestCostMicroUsd) {
@@ -772,7 +792,7 @@ export class BetaUsageLimiter {
       const anonymousKey = `anonymous:${inviteHash}`;
       const budgetKey = `${day}:budget`;
       const alertKey = `${day}:budget-alerted`;
-      const recent = anonymous
+      const recent = anonymous || unlimited
         ? []
         : (await transaction.get(inviteKey) || [])
             .filter((usedAt) => Number.isSafeInteger(usedAt) && usedAt > timestamp - inviteWindowMs);
@@ -781,7 +801,7 @@ export class BetaUsageLimiter {
       if (anonymous && anonymousUsed >= inviteLimit) {
         return { allowed: false, reason: 'anonymous_limit', shouldAlert: false };
       }
-      if (!anonymous && recent.length >= inviteLimit) {
+      if (!anonymous && !unlimited && recent.length >= inviteLimit) {
         return { allowed: false, reason: 'invite_limit', shouldAlert: false };
       }
       if (budgetUsed + requestCostMicroUsd > budgetMicroUsd) {
@@ -792,7 +812,9 @@ export class BetaUsageLimiter {
       await transaction.put({
         ...(anonymous
           ? { [anonymousKey]: anonymousUsed + 1 }
-          : { [inviteKey]: [...recent, timestamp] }),
+          : unlimited
+            ? {}
+            : { [inviteKey]: [...recent, timestamp] }),
         [budgetKey]: budgetUsed + requestCostMicroUsd,
       });
       return { allowed: true };

@@ -538,6 +538,65 @@ test('telemetry rejects invalid invites, unknown events, and payload fields that
   assert.deepEqual(events, []);
 });
 
+test('configured owner invite bypasses the per-invite analysis allowance', async () => {
+  let quotaRequest;
+  const ownerEnv = {
+    ...env,
+    BETA_OWNER_INVITE_CODE_HASHES: env.BETA_INVITE_CODE_HASHES,
+    BETA_USAGE_LIMITER: {
+      idFromName: (name) => name,
+      get: () => ({
+        fetch: async (request) => {
+          quotaRequest = await request.json();
+          return Response.json({ allowed: true });
+        },
+      }),
+    },
+  };
+  const fetcher = async () => Response.json({
+    candidates: [{ content: { parts: [{ text: JSON.stringify({
+      sceneSummary: 'Shelf',
+      items: [{
+        id: 'lamp', name: 'Lamp', category: 'Home', lowValue: 10,
+        typicalValue: 15, highValue: 20, confidence: 'medium', effort: 'low',
+        route: 'sell', reason: 'Visible lamp', searchQuery: 'lamp',
+        marketplace: 'localPickup', marketplaceReason: 'Easy pickup.',
+        box: { left: 0, top: 0, width: 1, height: 1 },
+      }],
+    }) }] } }],
+  });
+
+  const response = await createHandler({ fetcher })(imageRequest(), ownerEnv);
+
+  assert.equal(response.status, 200);
+  assert.equal(quotaRequest.unlimited, true);
+  assert.equal(quotaRequest.anonymous, false);
+});
+
+test('invite allowance exhaustion clearly explains the rolling reset', async () => {
+  let providerCalls = 0;
+  const limitedEnv = {
+    ...env,
+    BETA_USAGE_LIMITER: {
+      idFromName: (name) => name,
+      get: () => ({
+        fetch: async () => Response.json({ allowed: false, reason: 'invite_limit' }),
+      }),
+    },
+  };
+
+  const response = await createHandler({
+    fetcher: async () => { providerCalls += 1; },
+  })(imageRequest(), limitedEnv);
+  const body = await response.json();
+
+  assert.equal(response.status, 429);
+  assert.equal(providerCalls, 0);
+  assert.match(body.error, /used all 3 analyses/i);
+  assert.match(body.error, /available again 7 days after/i);
+  assert.doesNotMatch(body.error, /temporarily unavailable/i);
+});
+
 test('uses durable quota and alerts once when the daily budget is reached', async () => {
   let providerCalls = 0;
   let quotaRequest;
@@ -615,6 +674,36 @@ test('durable limiter enforces three analyses in a rolling seven-day invite wind
     timestamp: base.timestamp + (7 * 24 * 60 * 60 * 1000) + 1,
   })).json();
   assert.equal(afterWindow.allowed, true);
+});
+
+test('durable limiter lets owner bypass invite allowance but not daily budget', async () => {
+  const values = new Map();
+  const storage = {
+    transaction: async (callback) => callback({
+      get: async (key) => values.get(key),
+      put: async (entries) => { for (const [key, value] of Object.entries(entries)) values.set(key, value); },
+    }),
+  };
+  const limiter = new BetaUsageLimiter({ storage });
+  const reserve = (timestamp) => limiter.fetch(new Request('https://usage.internal/reserve', {
+    method: 'POST',
+    body: JSON.stringify({
+      day: '2026-09-08', timestamp, inviteHash: 'owner-hash',
+      inviteLimit: 3, inviteWindowMs: 7 * 24 * 60 * 60 * 1000,
+      budgetMicroUsd: 100000, requestCostMicroUsd: 10000,
+      unlimited: true,
+    }),
+  }));
+  const first = Date.UTC(2026, 8, 8, 12);
+
+  for (let index = 0; index < 10; index += 1) {
+    assert.equal((await (await reserve(first + index)).json()).allowed, true);
+  }
+  assert.deepEqual(await (await reserve(first + 10)).json(), {
+    allowed: false,
+    reason: 'daily_budget',
+    shouldAlert: true,
+  });
 });
 
 test('durable limiter allows only three anonymous analyses even after seven days', async () => {

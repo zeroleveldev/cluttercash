@@ -7,6 +7,7 @@ ClutterCash live analysis is fail-closed. Each browser/device receives three no-
 - A cryptographically random token is created in local app/browser storage. The Worker hashes it and `BetaUsageLimiter` stores only the hash plus accepted-use count, allowing three no-registration analyses total for that local token.
 - Clearing local storage can create another token, so this is a low-friction trial control rather than strong identity. The global daily cost ceiling remains the hard owner-protection backstop.
 - Original owner/device invite codes are compared after SHA-256 hashing against the static secret. Approved in-app requests register the requesting device-token hash; no plaintext code is generated or delivered. Legacy tester codes remain supported, and only their hashes and creation times are stored.
+- Hashes listed separately in `BETA_OWNER_INVITE_CODE_HASHES` bypass the three-analysis rolling allowance for owner testing. They still reserve against the global daily cost ceiling, so “unlimited” does not mean unbounded provider spending.
 - The public request form sends the submitted email and optional name/device to the private Discord webhook. One-way email/network hashes enforce one request per email and five per network address in a rolling 24-hour window. Plaintext contact fields are not stored in the Durable Object. Hashed device/status/approval tokens are retained for at most seven days while pending; approval removes the owner approval-token hash and retains a private hashed status record for at most 30 days.
 - `BetaUsageLimiter` uses one Durable Object and atomic storage transactions for approved-device/invite registration, request throttling, a three-analysis rolling seven-day approved-access limit, and a separate global daily reserved-cost ceiling.
 - The invite limit expires each analysis seven days after it was used; the global budget resets on the UTC date boundary.
@@ -29,11 +30,12 @@ Then configure Cloudflare secrets interactively from `worker/`; never put their 
 ```bash
 npx wrangler secret put GEMINI_API_KEY
 npx wrangler secret put BETA_INVITE_CODE_HASHES
+npx wrangler secret put BETA_OWNER_INVITE_CODE_HASHES
 npx wrangler secret put ALERT_WEBHOOK_URL
 npx wrangler secret put ADMIN_API_KEY
 ```
 
-`BETA_INVITE_CODE_HASHES` must be JSON such as `["<64-character-sha256>"]`. `ALERT_WEBHOOK_URL` must be an HTTPS Discord webhook. `ADMIN_API_KEY` must be a separate high-entropy value of at least 32 characters and must be present both in Cloudflare and the ignored local `worker/.dev.vars`; it authorizes only the private invite-generation command. Never reuse an invite, Gemini key, or webhook URL as this key.
+`BETA_INVITE_CODE_HASHES` must be JSON such as `["<64-character-sha256>"]`. `BETA_OWNER_INVITE_CODE_HASHES` uses the same JSON format but should contain only hashes of owner-controlled invite codes; never put a plaintext invite there. `ALERT_WEBHOOK_URL` must be an HTTPS Discord webhook. `ADMIN_API_KEY` must be a separate high-entropy value of at least 32 characters and must be present both in Cloudflare and the ignored local `worker/.dev.vars`; it authorizes only the private invite-generation command. Never reuse an invite, Gemini key, or webhook URL as this key.
 
 Validate configuration and tests before deployment:
 
@@ -80,7 +82,7 @@ Before inviting users, submit one controlled beta request and confirm Discord re
 
 If a code leaks or usage spikes:
 
-1. Remove its hash from `BETA_INVITE_CODE_HASHES` and redeploy the secret/configuration.
+1. Remove its hash from `BETA_INVITE_CODE_HASHES` and, if applicable, `BETA_OWNER_INVITE_CODE_HASHES`, then redeploy the secret/configuration.
 2. Lower the weekly request or daily budget values if needed.
 3. Rotate `GEMINI_API_KEY` if provider access itself may be exposed.
 4. Review Cloudflare/Gemini usage without downloading or logging household-photo payloads.
