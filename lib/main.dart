@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import 'domain/item.dart';
 import 'domain/listing_guide.dart';
@@ -12,6 +11,7 @@ import 'domain/project.dart';
 import 'domain/scan_result.dart';
 import 'services/beta_access_api.dart';
 import 'services/free_use_token.dart';
+import 'services/marketplace_link.dart';
 import 'services/project_store.dart';
 import 'services/scan_api.dart';
 import 'services/telemetry.dart';
@@ -1812,25 +1812,18 @@ class _ItemDetailsSheetState extends State<_ItemDetailsSheet> {
   Future<void> _open(Uri uri) async {
     var opened = false;
     try {
-      opened = await launchUrl(
-        uri,
-        mode: LaunchMode.platformDefault,
-        webOnlyWindowName: '_blank',
-      );
+      opened = await openMarketplaceLink(uri);
     } on Object {
       opened = false;
     }
     if (!opened && mounted) {
-      await Clipboard.setData(ClipboardData(text: uri.toString()));
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Marketplace link copied. Paste it into your browser.',
-            ),
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Could not open that marketplace link. Please try again.',
           ),
-        );
-      }
+        ),
+      );
     }
   }
 
