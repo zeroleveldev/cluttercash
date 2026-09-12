@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/link.dart';
 
 import 'domain/item.dart';
 import 'domain/listing_guide.dart';
@@ -12,7 +13,6 @@ import 'domain/scan_result.dart';
 import 'services/beta_access_api.dart';
 import 'services/beta_access_state.dart';
 import 'services/free_use_token.dart';
-import 'services/marketplace_link.dart';
 import 'services/project_store.dart';
 import 'services/scan_api.dart';
 import 'services/telemetry.dart';
@@ -1929,24 +1929,6 @@ class _ItemDetailsSheetState extends State<_ItemDetailsSheet> {
     item = widget.item;
   }
 
-  Future<void> _open(Uri uri) async {
-    var opened = false;
-    try {
-      opened = await openMarketplaceLink(uri);
-    } on Object {
-      opened = false;
-    }
-    if (!opened && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Could not open that marketplace link. Please try again.',
-          ),
-        ),
-      );
-    }
-  }
-
   Future<void> _identifyFromLabel() async {
     final proceed = await showDialog<bool>(
       context: context,
@@ -2134,25 +2116,37 @@ class _ItemDetailsSheetState extends State<_ItemDetailsSheet> {
           const SizedBox(height: 5),
           Text(guide.evidenceDisclaimer),
           const SizedBox(height: 12),
-          FilledButton.icon(
-            onPressed: () => _open(guide.ebaySold),
-            icon: const Icon(Icons.receipt_long_outlined),
-            label: const Text('Sold results'),
+          Link(
+            uri: guide.ebaySold,
+            target: LinkTarget.blank,
+            builder: (context, followLink) => FilledButton.icon(
+              onPressed: followLink,
+              icon: const Icon(Icons.receipt_long_outlined),
+              label: const Text('Sold results'),
+            ),
           ),
           const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: () => _open(guide.ebayActive),
-            icon: const Icon(Icons.sell_outlined),
-            label: const Text('Active listings'),
+          Link(
+            uri: guide.ebayActive,
+            target: LinkTarget.blank,
+            builder: (context, followLink) => OutlinedButton.icon(
+              onPressed: followLink,
+              icon: const Icon(Icons.sell_outlined),
+              label: const Text('Active listings'),
+            ),
           ),
           if (guide.recommendedMarketplace != Marketplace.ebay &&
               guide.recommendedMarketplace != Marketplace.consignment &&
               guide.recommendedMarketplace != Marketplace.donate) ...[
             const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: () => _open(guide.recommendedSearch),
-              icon: const Icon(Icons.open_in_new_rounded),
-              label: Text('Search ${guide.recommendedMarketplace.label}'),
+            Link(
+              uri: guide.recommendedSearch,
+              target: LinkTarget.blank,
+              builder: (context, followLink) => OutlinedButton.icon(
+                onPressed: followLink,
+                icon: const Icon(Icons.open_in_new_rounded),
+                label: Text('Search ${guide.recommendedMarketplace.label}'),
+              ),
             ),
           ],
           const SizedBox(height: 9),

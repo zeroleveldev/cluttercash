@@ -11,6 +11,7 @@ import 'package:cluttercash/services/telemetry.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/link.dart';
 
 class _RecordedTelemetry {
   const _RecordedTelemetry(this.event, this.failure);
@@ -388,6 +389,62 @@ void main() {
       expect(find.textContaining('unique serial number'), findsOneWidget);
     },
   );
+
+  testWidgets('marketplace research controls use real browser links', (
+    tester,
+  ) async {
+    final result = ScanResult(
+      id: 'local-item-scan',
+      projectId: 'local-item-project',
+      createdAt: DateTime(2026),
+      items: const [
+        ClutterItem(
+          id: 'chair',
+          name: 'Wood dining chair',
+          lowValue: 20,
+          typicalValue: 35,
+          highValue: 50,
+          confidence: Confidence.medium,
+          effort: SaleEffort.low,
+          route: ItemRoute.sell,
+          searchQuery: 'wood dining chair',
+          marketplace: Marketplace.localPickup,
+          marketplaceReason: 'Bulky item suited to a nearby buyer.',
+        ),
+      ],
+    );
+    await tester.pumpWidget(MaterialApp(home: ResultsScreen(result: result)));
+
+    final itemCard = find.ancestor(
+      of: find.text('Wood dining chair'),
+      matching: find.byType(InkWell),
+    );
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -300));
+    await tester.pumpAndSettle();
+    await tester.tap(itemCard.first);
+    await tester.pumpAndSettle();
+
+    Link linkFor(Finder control) => tester.widget<Link>(
+      find.ancestor(of: control, matching: find.byType(Link)).first,
+    );
+
+    final sold = linkFor(find.widgetWithText(FilledButton, 'Sold results'));
+    final active = linkFor(
+      find.widgetWithText(OutlinedButton, 'Active listings'),
+    );
+    final local = linkFor(
+      find.widgetWithText(OutlinedButton, 'Search Local pickup'),
+    );
+
+    expect(sold.uri?.host, 'www.ebay.com');
+    expect(sold.uri?.queryParameters['LH_Sold'], '1');
+    expect(active.uri?.host, 'www.ebay.com');
+    expect(active.uri?.queryParameters.containsKey('LH_Sold'), isFalse);
+    expect(local.uri?.host, 'www.facebook.com');
+    expect(sold.target, LinkTarget.blank);
+    expect(active.target, LinkTarget.blank);
+    expect(local.target, LinkTarget.blank);
+  });
 
   testWidgets('item correction updates the potential selling range', (
     tester,
