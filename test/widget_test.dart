@@ -296,6 +296,8 @@ void main() {
     expect(find.text('Privacy & beta terms'), findsOneWidget);
     expect(find.text('Free beta'), findsOneWidget);
     expect(find.textContaining('Effective September 10, 2026'), findsOneWidget);
+    expect(find.textContaining('Crop or cover serials before uploading'), findsOneWidget);
+    expect(find.textContaining('cannot guarantee exclusion'), findsOneWidget);
     await tester.drag(find.byType(ListView), const Offset(0, -1200));
     await tester.pumpAndSettle();
     expect(find.textContaining('event names'), findsOneWidget);
@@ -387,6 +389,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Photograph the model label'), findsOneWidget);
       expect(find.textContaining('unique serial number'), findsOneWidget);
+      expect(find.textContaining('Crop or cover serials before uploading'), findsOneWidget);
+      expect(find.textContaining('cannot guarantee'), findsOneWidget);
     },
   );
 

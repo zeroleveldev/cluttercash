@@ -6,22 +6,32 @@ class CleanoutProject {
     required this.name,
     required this.items,
     required this.createdAt,
+    this.isDemo = false,
   });
 
-  factory CleanoutProject.empty({required String id, required String name}) =>
-      CleanoutProject(
-        id: id,
-        name: name,
-        items: const [],
-        createdAt: DateTime.now(),
-      );
+  factory CleanoutProject.empty({
+    required String id,
+    required String name,
+    bool isDemo = false,
+  }) => CleanoutProject(
+    id: id,
+    name: name,
+    items: const [],
+    isDemo: isDemo,
+    createdAt: DateTime.now(),
+  );
 
   final String id;
   final String name;
   final List<ClutterItem> items;
   final DateTime createdAt;
+  final bool isDemo;
 
   CleanoutProject addItem(ClutterItem item) => _with([...items, item]);
+
+  CleanoutProject replaceItem(ClutterItem updated) => _with(
+    items.map((item) => item.id == updated.id ? updated : item).toList(),
+  );
 
   CleanoutProject updateStatus(String itemId, ItemStatus status) => _with(
     items
@@ -63,5 +73,6 @@ class CleanoutProject {
     name: name,
     items: List.unmodifiable(next),
     createdAt: createdAt,
+    isDemo: isDemo,
   );
 }

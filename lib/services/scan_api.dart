@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -5,6 +6,8 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 
 import '../domain/item.dart';
+import '../domain/item_identity_validation.dart';
+import '../domain/value_validation.dart';
 
 import '../domain/scan_result.dart';
 
@@ -58,10 +61,9 @@ class ScanApi {
               ),
             );
       _addAccessHeader(request.headers);
-      final streamed = await client
-          .send(request)
-          .timeout(const Duration(seconds: 55));
-      final body = await streamed.stream.bytesToString();
+      final response = await _readResponse(client, request);
+      final streamed = response.$1;
+      final body = response.$2;
       if (streamed.statusCode != 200) {
         final message =
             _errorMessage(body) ?? 'Scan failed (${streamed.statusCode}).';
@@ -102,10 +104,9 @@ class ScanApi {
               ),
             );
       _addAccessHeader(request.headers);
-      final streamed = await client
-          .send(request)
-          .timeout(const Duration(seconds: 55));
-      final body = await streamed.stream.bytesToString();
+      final response = await _readResponse(client, request);
+      final streamed = response.$1;
+      final body = response.$2;
       if (streamed.statusCode != 200) {
         final message =
             _errorMessage(body) ??
@@ -116,6 +117,45 @@ class ScanApi {
     } finally {
       if (_client == null) client.close();
     }
+  }
+
+  // One clock includes upload, headers and the entire response body.
+  // Cancel the subscription as well as closing the per-operation transport.
+  Future<(http.StreamedResponse, String)> _readResponse(
+    http.Client client,
+    http.BaseRequest request,
+  ) async {
+    StreamSubscription<String>? subscription;
+    var expired = false;
+    final operation = () async {
+      final response = await client.send(request);
+      if (expired) {
+        await response.stream.listen((_) {}).cancel();
+        throw const ScanApiException('Analysis timed out.');
+      }
+      final body = Completer<String>();
+      final chunks = StringBuffer();
+      subscription = response.stream
+          .transform(utf8.decoder)
+          .listen(
+            chunks.write,
+            onError: body.completeError,
+            onDone: () => body.complete(chunks.toString()),
+            cancelOnError: true,
+          );
+      return (response, await body.future);
+    }();
+    return operation.timeout(
+      const Duration(seconds: 55),
+      onTimeout: () {
+        expired = true;
+        unawaited(subscription?.cancel());
+        client.close();
+        throw const ScanApiException(
+          'Analysis timed out. No automatic retry was made. A new attempt may use another analysis.',
+        );
+      },
+    );
   }
 
   static ItemIdentification parseIdentificationResponse(
@@ -137,10 +177,9 @@ class ScanApi {
     final updated = item.copyWith(
       name: exactName.isEmpty ? item.name : exactName,
       confidence: _confidence(decoded['confidence']),
-      searchQuery: '${decoded['searchQuery'] ?? item.searchQuery}',
+      searchQuery: decoded['searchQuery'] as String?,
       marketplace: _marketplace(decoded['marketplace']),
-      marketplaceReason:
-          '${decoded['marketplaceReason'] ?? item.marketplaceReason}',
+      marketplaceReason: decoded['marketplaceReason'] as String?,
     );
     return ItemIdentification(
       item: updated,
@@ -159,8 +198,7 @@ class ScanApi {
     }
     if (decoded is! Map<String, dynamic> ||
         decoded['sceneSummary'] is! String ||
-        decoded['items'] is! List ||
-        (decoded['items'] as List).isEmpty) {
+        decoded['items'] is! List) {
       throw const FormatException(
         'Scan response did not match the expected contract.',
       );
@@ -175,12 +213,12 @@ class ScanApi {
           : const <String, dynamic>{};
       items.add(
         ClutterItem(
-          id: '${raw['id'] ?? 'item-${items.length + 1}'}',
+          id: validatedItemId(raw['id'] ?? 'item-${items.length + 1}'),
           name: raw['name'] as String,
           category: '${raw['category'] ?? 'Other'}',
-          lowValue: _number(raw['lowValue']),
-          typicalValue: _number(raw['typicalValue']),
-          highValue: _number(raw['highValue']),
+          lowValue: estimateNumber(raw['lowValue']),
+          typicalValue: estimateNumber(raw['typicalValue']),
+          highValue: estimateNumber(raw['highValue']),
           confidence: _confidence(raw['confidence']),
           effort: _effort(raw['effort']),
           route: _route(raw['route']),
@@ -195,6 +233,10 @@ class ScanApi {
           boxHeight: _number(box['height']),
         ),
       );
+    }
+    validateItemIds(items);
+    for (final item in items) {
+      validateValueRange(item.lowValue, item.typicalValue, item.highValue);
     }
     return ScanResult(
       id: 'scan-${DateTime.now().millisecondsSinceEpoch}',

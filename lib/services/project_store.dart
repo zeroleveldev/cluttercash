@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../domain/item.dart';
+import '../domain/item_identity_validation.dart';
+import '../domain/value_validation.dart';
 import '../domain/project.dart';
 
 class ProjectStore {
@@ -11,9 +13,14 @@ class ProjectStore {
   static const _prefix = 'cluttercash.project.';
 
   Future<void> save(CleanoutProject project) async {
+    validateItemIds(project.items);
+    for (final item in project.items) {
+      validateValueRange(item.lowValue, item.typicalValue, item.highValue);
+    }
     final encoded = jsonEncode({
       'id': project.id,
       'name': project.name,
+      'isDemo': project.isDemo,
       'createdAt': project.createdAt.toIso8601String(),
       'items': project.items.map(_itemToJson).toList(),
     });
@@ -28,15 +35,21 @@ class ProjectStore {
       if (value is! Map<String, dynamic> || value['items'] is! List) {
         return null;
       }
-      return CleanoutProject(
+      final project = CleanoutProject(
         id: '${value['id']}',
         name: '${value['name']}',
+        isDemo: value['isDemo'] == true,
         createdAt: DateTime.tryParse('${value['createdAt']}') ?? DateTime.now(),
         items: (value['items'] as List)
             .whereType<Map<String, dynamic>>()
             .map(_itemFromJson)
             .toList(),
       );
+      validateItemIds(project.items);
+      for (final item in project.items) {
+        validateValueRange(item.lowValue, item.typicalValue, item.highValue);
+      }
+      return project;
     } on Object {
       return null;
     }
@@ -79,11 +92,11 @@ class ProjectStore {
   };
 
   static ClutterItem _itemFromJson(Map<String, dynamic> value) => ClutterItem(
-    id: '${value['id']}',
+    id: validatedItemId(value['id']),
     name: '${value['name']}',
-    lowValue: _number(value['lowValue']),
-    typicalValue: _number(value['typicalValue']),
-    highValue: _number(value['highValue']),
+    lowValue: estimateNumber(value['lowValue']),
+    typicalValue: estimateNumber(value['typicalValue']),
+    highValue: estimateNumber(value['highValue']),
     confidence: _enum(Confidence.values, value['confidence'], Confidence.low),
     effort: _enum(SaleEffort.values, value['effort'], SaleEffort.medium),
     route: _enum(ItemRoute.values, value['route'], ItemRoute.keep),

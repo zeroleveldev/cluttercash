@@ -26,17 +26,35 @@ const schema = {
   },
 };
 
+// Race the complete body read, not only receipt of headers. Abort transport
+// on expiry; never retry a metered request or refund an attempted reservation.
+async function withProviderDeadline(operation, timeoutMs) {
+  const controller = new AbortController();
+  let timer;
+  const deadline = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new Error('Provider deadline exceeded'));
+    }, timeoutMs);
+  });
+  try { return await Promise.race([operation(controller.signal), deadline]); }
+  finally { clearTimeout(timer); }
+}
+
 export function createOpenAiAnalyzer({
   apiKey,
   model = process.env.OPENAI_MODEL || 'gpt-4.1-mini',
   baseUrl = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
   fetcher = fetch,
+  providerTimeoutMs = 45000,
 } = {}) {
   if (!apiKey) return null;
   return {
     async analyze({ bytes, mimeType }) {
+      return withProviderDeadline(async (signal) => {
       const response = await fetcher(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
         method: 'POST',
+        signal,
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model,
@@ -53,6 +71,7 @@ export function createOpenAiAnalyzer({
       const content = body?.choices?.[0]?.message?.content;
       if (!content) throw new Error('Provider returned no content');
       return JSON.parse(content);
+      }, providerTimeoutMs);
     },
   };
 }

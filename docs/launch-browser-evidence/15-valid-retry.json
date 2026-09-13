@@ -1,0 +1,29 @@
+{
+  "text": "Back\nAnalysis complete\nNo items identified\nThe analysis completed but did not identify any candidate items. This does not mean the scene has no value.\nFor another photo, move closer to one or a few items, use good lighting, and keep objects clearly visible. Another analysis may use another available attempt.\nBack to home",
+  "transport": {
+    "requests": [
+      {
+        "url": "https://cluttercash-api.zeroleveldev.workers.dev/v1/scans",
+        "method": "POST",
+        "bytes": 654,
+        "consent": true,
+        "mime": true
+      },
+      {
+        "url": "https://cluttercash-api.zeroleveldev.workers.dev/v1/scans",
+        "method": "POST",
+        "bytes": 654,
+        "consent": true,
+        "mime": true
+      },
+      {
+        "url": "https://cluttercash-api.zeroleveldev.workers.dev/v1/scans",
+        "method": "POST",
+        "bytes": 654,
+        "consent": true,
+        "mime": true
+      }
+    ],
+    "opens": []
+  }
+}

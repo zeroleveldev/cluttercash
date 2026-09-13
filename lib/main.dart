@@ -1,12 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/link.dart';
 
 import 'domain/item.dart';
+import 'domain/value_validation.dart';
 import 'domain/listing_guide.dart';
 import 'domain/project.dart';
 import 'domain/scan_result.dart';
@@ -61,6 +63,7 @@ Future<ScanApi> _activeScanApi() async {
 class ClutterCashApp extends StatelessWidget {
   const ClutterCashApp({
     super.key,
+    this.picker,
     this.telemetry = const TelemetryClient(
       baseUrl: _apiUrl,
       inviteCode: _betaInvite,
@@ -68,6 +71,7 @@ class ClutterCashApp extends StatelessWidget {
   });
 
   final TelemetryReporter telemetry;
+  final ImagePicker? picker;
 
   @override
   Widget build(BuildContext context) => TelemetryScope(
@@ -137,9 +141,70 @@ class ClutterCashApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const WelcomeScreen(),
+      home: _PickerRecoveryHome(picker: picker),
     ),
   );
+}
+
+// Lost picker data does not retain trustworthy room/item context or consent.
+// Never replay it as an AI request: explicitly ask for a fresh selection.
+class _PickerRecoveryHome extends StatefulWidget {
+  const _PickerRecoveryHome({this.picker});
+  final ImagePicker? picker;
+
+  @override
+  State<_PickerRecoveryHome> createState() => _PickerRecoveryHomeState();
+}
+
+class _PickerRecoveryHomeState extends State<_PickerRecoveryHome> {
+  @override
+  void initState() {
+    super.initState();
+    if (widget.picker != null ||
+        (!kIsWeb && defaultTargetPlatform == TargetPlatform.android)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _recover());
+    }
+  }
+
+  Future<void> _recover() async {
+    if (!mounted) return;
+    try {
+      final response = await (widget.picker ?? ImagePicker())
+          .retrieveLostData();
+      if (response.isEmpty) return;
+    } on Object {
+      // Do not expose plugin paths, messages or photo-derived data.
+    }
+    if (!mounted) return;
+    final restart = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Photo selection interrupted'),
+        content: const Text(
+          'The previous photo selection could not be safely resumed. Nothing has been uploaded by recovery. We cannot restore whether this was a room or model-label photo. Start a new scan and choose a photo again, or reopen the saved item to photograph its label. You will be asked for upload consent again. A new analysis may use another attempt.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Not now'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Start a new scan'),
+          ),
+        ],
+      ),
+    );
+    if (restart == true && mounted) {
+      await Navigator.push<void>(
+        context,
+        MaterialPageRoute(builder: (_) => CaptureScreen(picker: widget.picker)),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => const WelcomeScreen();
 }
 
 class WelcomeScreen extends StatelessWidget {
@@ -319,12 +384,12 @@ class BetaTermsScreen extends StatelessWidget {
               _TermsSection(
                 title: 'Photos and AI processing',
                 body:
-                    'When you choose a live scan or model-label photo and accept the upload notice, the app sends the image through ClutterCash’s Cloudflare Worker to Google Gemini. The Worker processes image bytes in memory and is designed not to write them to disk. Google may review free-tier submissions and use them to improve its products. Never upload faces, mail, addresses, keys, medication, documents, account information, or other sensitive/private content.',
+                    'When you choose a live scan or model-label photo and accept the upload notice, the app sends the image through ClutterCash’s Cloudflare Worker to Google Gemini. The Worker processes image bytes in memory and is designed not to write them to disk. Google may review free-tier submissions and use them to improve its products. Crop or cover serials before uploading, keeping maker/model details visible. We omit dedicated serial fields and apply limited exact-text filtering, but cannot guarantee exclusion from results, local saves, or marketplace searches. Review and correct private details before saving or researching. Filtering a response does not remove details from the photo sent to Gemini. Never upload faces, mail, addresses, keys, medication, documents, account information, or other sensitive/private content.',
               ),
               _TermsSection(
                 title: 'Your data and local storage',
                 body:
-                    'This beta has no account or cloud project sync. Projects, results, corrections, and item statuses stay in local app/browser storage on this device. The app creates one random local token to enforce three no-registration analyses. If you are approved, the Worker promotes that token’s hash to continued limited access. Plaintext browser tokens are not stored server-side. These are cost/abuse controls, not a user account or advertising profile.',
+                    'This beta has no account or cloud project sync. Projects, results, corrections, and item statuses stay in local app/browser storage on this device. The app creates one random local token to enforce three no-registration analyses. If you are approved, the Worker promotes that token’s hash to continued limited access. Plaintext browser tokens are not stored server-side. These are cost/abuse controls, not a user account or advertising profile. Anonymous analyses also share a small daily trial pool and a six-attempt daily connection-address limit. The Worker stores a day-scoped address hash and count, not the raw address. Old daily records stop limiting use but remain until operator cleanup; local project deletion does not remove them. Hashing is not anonymization.',
               ),
               _TermsSection(
                 title: 'Access requests',
@@ -548,7 +613,7 @@ class _ProjectLibraryScreenState extends State<ProjectLibraryScreen> {
                           ),
                         ),
                         subtitle: Text(
-                          '$itemCount ${itemCount == 1 ? 'item' : 'items'} · ${project.clearedCount} cleared',
+                          '${project.isDemo ? 'DEMO · ' : ''}$itemCount ${itemCount == 1 ? 'item' : 'items'} · ${project.clearedCount} cleared',
                         ),
                         onTap: () => _openProject(project),
                         trailing: IconButton(
@@ -786,10 +851,11 @@ class _ScanCorner extends StatelessWidget {
 }
 
 class CaptureScreen extends StatelessWidget {
-  const CaptureScreen({super.key});
+  const CaptureScreen({super.key, this.picker});
+  final ImagePicker? picker;
 
   Future<void> _pick(BuildContext context, ImageSource source) async {
-    final image = await ImagePicker().pickImage(
+    final image = await (picker ?? ImagePicker()).pickImage(
       source: source,
       imageQuality: 82,
       maxWidth: 1800,
@@ -1727,6 +1793,35 @@ class ResultsScreen extends StatefulWidget {
 }
 
 class _ResultsScreenState extends State<ResultsScreen> {
+  Widget _emptyResult(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Analysis complete')),
+    body: ListView(
+      padding: const EdgeInsets.all(24),
+      children: [
+        const Icon(Icons.search_off_rounded, size: 64),
+        const SizedBox(height: 20),
+        Text(
+          'No items identified',
+          style: Theme.of(context).textTheme.headlineLarge,
+        ),
+        const SizedBox(height: 12),
+        const Text(
+          'The analysis completed but did not identify any candidate items. This does not mean the scene has no value.',
+        ),
+        const SizedBox(height: 12),
+        const Text(
+          'For another photo, move closer to one or a few items, use good lighting, and keep objects clearly visible. Another analysis may use another available attempt.',
+        ),
+        const SizedBox(height: 24),
+        FilledButton(
+          onPressed: () =>
+              Navigator.popUntil(context, (route) => route.isFirst),
+          child: const Text('Back to home'),
+        ),
+      ],
+    ),
+  );
+
   late ScanResult scan = widget.result ?? _demoResult();
   late final Set<String> queued = scan.items
       .where((item) => item.route == ItemRoute.sell)
@@ -1735,125 +1830,131 @@ class _ResultsScreenState extends State<ResultsScreen> {
       .toSet();
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    body: SafeArea(
-      child: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            pinned: true,
-            backgroundColor: _cream,
-            surfaceTintColor: _cream,
-            leading: IconButton(
-              icon: const Icon(Icons.close_rounded),
-              onPressed: () =>
-                  Navigator.popUntil(context, (route) => route.isFirst),
-            ),
-            title: const Text(
-              'Garage reset',
-              style: TextStyle(fontWeight: FontWeight.w900),
-            ),
-            actions: const [],
-          ),
-          SliverToBoxAdapter(
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 600),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 8, 18, 34),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _ResultHero(
-                        scan: scan,
-                        imageBytes: widget.imageBytes,
-                        isDemo: widget.result == null,
-                      ),
-                      const SizedBox(height: 18),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _MetricCard(
-                              icon: Icons.inventory_2_outlined,
-                              value: '${scan.items.length}',
-                              label: 'items found',
+  Widget build(BuildContext context) => scan.items.isEmpty
+      ? _emptyResult(context)
+      : Scaffold(
+          body: SafeArea(
+            child: CustomScrollView(
+              slivers: [
+                SliverAppBar(
+                  pinned: true,
+                  backgroundColor: _cream,
+                  surfaceTintColor: _cream,
+                  leading: IconButton(
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: () =>
+                        Navigator.popUntil(context, (route) => route.isFirst),
+                  ),
+                  title: const Text(
+                    'Garage reset',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  actions: const [],
+                ),
+                SliverToBoxAdapter(
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 600),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(18, 8, 18, 34),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _ResultHero(
+                              scan: scan,
+                              imageBytes: widget.imageBytes,
+                              isDemo: widget.result == null,
                             ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _MetricCard(
-                              icon: Icons.sell_outlined,
-                              value:
-                                  '\$${scan.lowTotal.toInt()}–\$${scan.highTotal.toInt()}',
-                              label: 'potential range',
+                            const SizedBox(height: 18),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _MetricCard(
+                                    icon: Icons.inventory_2_outlined,
+                                    value: '${scan.items.length}',
+                                    label: 'items found',
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: _MetricCard(
+                                    icon: Icons.sell_outlined,
+                                    value:
+                                        '\$${scan.lowTotal.toInt()}–\$${scan.highTotal.toInt()}',
+                                    label: 'potential range',
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: _MetricCard(
+                                    icon: Icons.checklist_rounded,
+                                    value: '${queued.length}',
+                                    label: 'selected to list',
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _MetricCard(
-                              icon: Icons.checklist_rounded,
-                              value: '${queued.length}',
-                              label: 'selected to list',
+                            const SizedBox(height: 24),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    'Your action queue',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.headlineMedium,
+                                  ),
+                                ),
+                                Text(
+                                  '${queued.length} selected',
+                                  style: const TextStyle(
+                                    color: _forest,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Your action queue',
-                              style: Theme.of(context).textTheme.headlineMedium,
+                            const SizedBox(height: 6),
+                            Text(
+                              'Highest potential value with the least hassle—first.',
+                              style: Theme.of(context).textTheme.bodyMedium,
                             ),
-                          ),
-                          Text(
-                            '${queued.length} selected',
-                            style: const TextStyle(
-                              color: _forest,
-                              fontWeight: FontWeight.w800,
+                            const SizedBox(height: 13),
+                            ...scan.items.map(
+                              (item) => _ItemCard(
+                                item: item,
+                                selected: queued.contains(item.id),
+                                onChanged: () => setState(
+                                  () => queued.contains(item.id)
+                                      ? queued.remove(item.id)
+                                      : queued.add(item.id),
+                                ),
+                                onTap: () => _showItem(context, item),
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Highest potential value with the least hassle—first.',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      const SizedBox(height: 13),
-                      ...scan.items.map(
-                        (item) => _ItemCard(
-                          item: item,
-                          selected: queued.contains(item.id),
-                          onChanged: () => setState(
-                            () => queued.contains(item.id)
-                                ? queued.remove(item.id)
-                                : queued.add(item.id),
-                          ),
-                          onTap: () => _showItem(context, item),
+                            const SizedBox(height: 12),
+                            FilledButton.icon(
+                              onPressed: queued.isEmpty
+                                  ? null
+                                  : () => _showProjectCreated(context),
+                              icon: const Icon(Icons.rocket_launch_rounded),
+                              label: Text(
+                                'Start clearing ${queued.length} items',
+                              ),
+                            ),
+                            const SizedBox(height: 11),
+                            const SizedBox(height: 16),
+                            const _TrustNote(),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      FilledButton.icon(
-                        onPressed: queued.isEmpty
-                            ? null
-                            : () => _showProjectCreated(context),
-                        icon: const Icon(Icons.rocket_launch_rounded),
-                        label: Text('Start clearing ${queued.length} items'),
-                      ),
-                      const SizedBox(height: 11),
-                      const SizedBox(height: 16),
-                      const _TrustNote(),
-                    ],
+                    ),
                   ),
                 ),
-              ),
+              ],
             ),
           ),
-        ],
-      ),
-    ),
-  );
+        );
 
   void _showItem(BuildContext context, ClutterItem item) =>
       showModalBottomSheet(
@@ -1865,6 +1966,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
         ),
         builder: (_) => _ItemDetailsSheet(
           item: item,
+          isDemo: widget.result == null,
           onUpdated: (updated) => setState(() {
             scan = ScanResult(
               id: scan.id,
@@ -1886,6 +1988,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
     var project = CleanoutProject.empty(
       id: 'project-${DateTime.now().millisecondsSinceEpoch}',
       name: 'Garage Reset',
+      isDemo: widget.result == null,
     );
     for (final item in scan.items.where((item) => queued.contains(item.id))) {
       project = project.addItem(item.copyWith(status: ItemStatus.sell));
@@ -1906,7 +2009,13 @@ class _ResultsScreenState extends State<ResultsScreen> {
 }
 
 class _ItemDetailsSheet extends StatefulWidget {
-  const _ItemDetailsSheet({required this.item, required this.onUpdated});
+  const _ItemDetailsSheet({
+    required this.item,
+    required this.onUpdated,
+    this.isDemo = false,
+  });
+
+  final bool isDemo;
 
   final ClutterItem item;
   final ValueChanged<ClutterItem> onUpdated;
@@ -1936,7 +2045,7 @@ class _ItemDetailsSheetState extends State<_ItemDetailsSheet> {
         title: const Text('Photograph the model label'),
         content: const SingleChildScrollView(
           child: Text(
-            'Look for the maker, model, model number, or part number. Those details help find the exact product.\n\nA unique serial number usually does not help with pricing. If it appears on the same label, ClutterCash asks the AI not to return or save it—only to report that one was detected.\n\nThe photo is sent to Google Gemini under the free beta and may be reviewed or used to improve products. Avoid faces, addresses, documents, account details, or anything else private.',
+            'Look for the maker, model, model number, or part number. Those details help find the exact product.\n\nA unique serial number usually does not help with pricing. Crop or cover serials before uploading, keeping the maker and model visible. We ask AI to omit serials and apply limited text filtering, but cannot guarantee exclusion from results, saved corrections, or marketplace searches. Review and correct the identity before saving or opening research links.\n\nThe photo is sent to Google Gemini under the free beta and may be reviewed or used to improve products. Avoid faces, addresses, documents, account details, or anything else private.',
           ),
         ),
         actions: [
@@ -1980,7 +2089,7 @@ class _ItemDetailsSheetState extends State<_ItemDetailsSheet> {
         ].where((part) => part.trim().isNotEmpty).join(' ');
         identityStatus = identity.isEmpty
             ? 'No exact model was readable. Try a sharper, closer label photo.'
-            : 'Identity improved: $identity.${result.serialDetected ? ' A serial was detected but not returned or saved.' : ''}';
+            : 'Identity improved: $identity.${result.serialDetected ? ' A serial may be visible. Check the identity and remove private details before saving or researching.' : ''}';
       });
       widget.onUpdated(item);
     } on Object catch (error) {
@@ -2046,6 +2155,7 @@ class _ItemDetailsSheetState extends State<_ItemDetailsSheet> {
             ],
           ),
           const SizedBox(height: 12),
+          if (widget.isDemo) const Text('DEMO · Sample items and estimates'),
           Text(item.name, style: Theme.of(context).textTheme.headlineLarge),
           const SizedBox(height: 7),
           Text(
@@ -2217,11 +2327,10 @@ class _ItemCorrectionSheetState extends State<_ItemCorrectionSheet> {
     if (low == null ||
         typical == null ||
         high == null ||
-        low < 0 ||
-        typical < low ||
-        high < typical) {
+        !validValueRange(low, typical, high)) {
       setState(
-        () => error = 'Enter non-negative values from low to typical to high.',
+        () => error =
+            'Enter finite values from 0 to 1,000,000, ordered low to typical to high.',
       );
       return;
     }
@@ -2770,6 +2879,24 @@ class ProjectBoardScreen extends StatefulWidget {
 class _ProjectBoardScreenState extends State<ProjectBoardScreen> {
   late CleanoutProject project = widget.project;
 
+  void _showItem(ClutterItem item) => showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: _paper,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+    ),
+    builder: (_) => _ItemDetailsSheet(
+      item: item,
+      isDemo: project.isDemo,
+      onUpdated: (updated) async {
+        final next = project.replaceItem(updated);
+        await widget.store?.save(next);
+        if (mounted) setState(() => project = next);
+      },
+    ),
+  );
+
   Future<void> _change(ClutterItem item, ItemStatus status) async {
     final telemetry = TelemetryScope.of(context);
     setState(() {
@@ -2805,6 +2932,8 @@ class _ProjectBoardScreenState extends State<ProjectBoardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (project.isDemo)
+                      const _EyebrowLight('DEMO · Sample items and estimates'),
                     const _EyebrowLight('CLEARING PROGRESS'),
                     const SizedBox(height: 7),
                     Text(
@@ -2894,6 +3023,11 @@ class _ProjectBoardScreenState extends State<ProjectBoardScreen> {
                             ),
                             _StatusPill(item.status),
                           ],
+                        ),
+                        TextButton.icon(
+                          onPressed: () => _showItem(item),
+                          icon: const Icon(Icons.manage_search),
+                          label: const Text('Research / correct item'),
                         ),
                         const SizedBox(height: 13),
                         Row(

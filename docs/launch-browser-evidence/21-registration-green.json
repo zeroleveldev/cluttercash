@@ -1,0 +1,19 @@
+{
+  "sha256": "5342b57dfc733de06fa7c380e656156226a3ec3af6359fd0440db4c32cb0399c",
+  "webLinkMarkerPresent": true,
+  "registrants": [
+    {
+      "path": ".dart_tool\\flutter_build\\6da3b8ed7e7ca3e410986bd9911acbd0\\web_plugin_registrant.dart",
+      "registersUrlLauncher": false
+    },
+    {
+      "path": ".dart_tool\\flutter_build\\6ddc8aff10084bba79c3e415904f94e2\\web_plugin_registrant.dart",
+      "registersUrlLauncher": true
+    },
+    {
+      "path": ".dart_tool\\flutter_build\\d53f10ba82cdf31e289e8be8ce3ac024\\web_plugin_registrant.dart",
+      "registersUrlLauncher": false
+    }
+  ],
+  "passed": true
+}

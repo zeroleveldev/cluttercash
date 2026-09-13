@@ -1,4 +1,5 @@
 import 'item.dart';
+import 'value_validation.dart';
 
 class ScanResult {
   const ScanResult({
@@ -13,10 +14,10 @@ class ScanResult {
   final DateTime createdAt;
   final List<ClutterItem> items;
 
-  double get lowTotal => items.fold(0, (sum, item) => sum + item.lowValue);
+  double get lowTotal => safeValueTotal(items.map((item) => item.lowValue));
   double get typicalTotal =>
-      items.fold(0, (sum, item) => sum + item.typicalValue);
-  double get highTotal => items.fold(0, (sum, item) => sum + item.highValue);
+      safeValueTotal(items.map((item) => item.typicalValue));
+  double get highTotal => safeValueTotal(items.map((item) => item.highValue));
 
   List<ClutterItem> bigTicketItems({double threshold = 100}) =>
       items.where((item) => item.typicalValue >= threshold).toList();

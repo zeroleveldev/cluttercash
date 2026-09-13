@@ -1,0 +1,196 @@
+{
+  "before": {
+    "targetInfos": [
+      {
+        "targetId": "7B2F015724ADE787C4DEE2DABA69721F",
+        "type": "browser_ui",
+        "title": "Omnibox Popup",
+        "url": "chrome://omnibox-popup.top-chrome/",
+        "attached": false,
+        "canAccessOpener": false,
+        "browserContextId": "2688A8866408BE9B80D6EEB0BA53642B"
+      },
+      {
+        "targetId": "6BBAFD17A04FB07A07C888DF34B85D8D",
+        "type": "browser_ui",
+        "title": "Omnibox Popup",
+        "url": "chrome://omnibox-popup.top-chrome/omnibox_popup_aim.html",
+        "attached": false,
+        "canAccessOpener": false,
+        "browserContextId": "2688A8866408BE9B80D6EEB0BA53642B"
+      },
+      {
+        "targetId": "6754F101203C9FBCE15427A4F71533EA",
+        "type": "page",
+        "title": "New Tab",
+        "url": "chrome://newtab/",
+        "attached": true,
+        "canAccessOpener": false,
+        "browserContextId": "2688A8866408BE9B80D6EEB0BA53642B"
+      },
+      {
+        "targetId": "87057A91B8A2311FB937A46DA8D701C2",
+        "type": "iframe",
+        "title": "chrome-untrusted://new-tab-page/one-google-bar?paramsencoded=",
+        "url": "chrome-untrusted://new-tab-page/one-google-bar?paramsencoded=",
+        "attached": true,
+        "parentId": "6754F101203C9FBCE15427A4F71533EA",
+        "canAccessOpener": false,
+        "parentFrameId": "6754F101203C9FBCE15427A4F71533EA",
+        "browserContextId": "2688A8866408BE9B80D6EEB0BA53642B"
+      },
+      {
+        "targetId": "163B40F8F6770162ED8AC5CC9D372F1E",
+        "type": "page",
+        "title": "about:blank",
+        "url": "about:blank",
+        "attached": true,
+        "canAccessOpener": false,
+        "browserContextId": "2688A8866408BE9B80D6EEB0BA53642B"
+      },
+      {
+        "targetId": "6FFA480278728797BD8278CF4F51CB18",
+        "type": "page",
+        "title": "ClutterCash",
+        "url": "http://127.0.0.1:8765/cluttercash/",
+        "attached": true,
+        "canAccessOpener": false,
+        "browserContextId": "2688A8866408BE9B80D6EEB0BA53642B"
+      }
+    ]
+  },
+  "afterSold": {
+    "targetInfos": [
+      {
+        "targetId": "7B2F015724ADE787C4DEE2DABA69721F",
+        "type": "browser_ui",
+        "title": "Omnibox Popup",
+        "url": "chrome://omnibox-popup.top-chrome/",
+        "attached": false,
+        "canAccessOpener": false,
+        "browserContextId": "2688A8866408BE9B80D6EEB0BA53642B"
+      },
+      {
+        "targetId": "6BBAFD17A04FB07A07C888DF34B85D8D",
+        "type": "browser_ui",
+        "title": "Omnibox Popup",
+        "url": "chrome://omnibox-popup.top-chrome/omnibox_popup_aim.html",
+        "attached": false,
+        "canAccessOpener": false,
+        "browserContextId": "2688A8866408BE9B80D6EEB0BA53642B"
+      },
+      {
+        "targetId": "6754F101203C9FBCE15427A4F71533EA",
+        "type": "page",
+        "title": "New Tab",
+        "url": "chrome://newtab/",
+        "attached": true,
+        "canAccessOpener": false,
+        "browserContextId": "2688A8866408BE9B80D6EEB0BA53642B"
+      },
+      {
+        "targetId": "87057A91B8A2311FB937A46DA8D701C2",
+        "type": "iframe",
+        "title": "chrome-untrusted://new-tab-page/one-google-bar?paramsencoded=",
+        "url": "chrome-untrusted://new-tab-page/one-google-bar?paramsencoded=",
+        "attached": true,
+        "parentId": "6754F101203C9FBCE15427A4F71533EA",
+        "canAccessOpener": false,
+        "parentFrameId": "6754F101203C9FBCE15427A4F71533EA",
+        "browserContextId": "2688A8866408BE9B80D6EEB0BA53642B"
+      },
+      {
+        "targetId": "163B40F8F6770162ED8AC5CC9D372F1E",
+        "type": "page",
+        "title": "about:blank",
+        "url": "about:blank",
+        "attached": true,
+        "canAccessOpener": false,
+        "browserContextId": "2688A8866408BE9B80D6EEB0BA53642B"
+      },
+      {
+        "targetId": "6FFA480278728797BD8278CF4F51CB18",
+        "type": "page",
+        "title": "ClutterCash",
+        "url": "http://127.0.0.1:8765/cluttercash/",
+        "attached": true,
+        "canAccessOpener": false,
+        "browserContextId": "2688A8866408BE9B80D6EEB0BA53642B"
+      }
+    ]
+  },
+  "afterActive": {
+    "targetInfos": [
+      {
+        "targetId": "7B2F015724ADE787C4DEE2DABA69721F",
+        "type": "browser_ui",
+        "title": "Omnibox Popup",
+        "url": "chrome://omnibox-popup.top-chrome/",
+        "attached": false,
+        "canAccessOpener": false,
+        "browserContextId": "2688A8866408BE9B80D6EEB0BA53642B"
+      },
+      {
+        "targetId": "6BBAFD17A04FB07A07C888DF34B85D8D",
+        "type": "browser_ui",
+        "title": "Omnibox Popup",
+        "url": "chrome://omnibox-popup.top-chrome/omnibox_popup_aim.html",
+        "attached": false,
+        "canAccessOpener": false,
+        "browserContextId": "2688A8866408BE9B80D6EEB0BA53642B"
+      },
+      {
+        "targetId": "6754F101203C9FBCE15427A4F71533EA",
+        "type": "page",
+        "title": "New Tab",
+        "url": "chrome://newtab/",
+        "attached": true,
+        "canAccessOpener": false,
+        "browserContextId": "2688A8866408BE9B80D6EEB0BA53642B"
+      },
+      {
+        "targetId": "87057A91B8A2311FB937A46DA8D701C2",
+        "type": "iframe",
+        "title": "chrome-untrusted://new-tab-page/one-google-bar?paramsencoded=",
+        "url": "chrome-untrusted://new-tab-page/one-google-bar?paramsencoded=",
+        "attached": true,
+        "parentId": "6754F101203C9FBCE15427A4F71533EA",
+        "canAccessOpener": false,
+        "parentFrameId": "6754F101203C9FBCE15427A4F71533EA",
+        "browserContextId": "2688A8866408BE9B80D6EEB0BA53642B"
+      },
+      {
+        "targetId": "163B40F8F6770162ED8AC5CC9D372F1E",
+        "type": "page",
+        "title": "about:blank",
+        "url": "about:blank",
+        "attached": true,
+        "canAccessOpener": false,
+        "browserContextId": "2688A8866408BE9B80D6EEB0BA53642B"
+      },
+      {
+        "targetId": "6FFA480278728797BD8278CF4F51CB18",
+        "type": "page",
+        "title": "ClutterCash",
+        "url": "http://127.0.0.1:8765/cluttercash/",
+        "attached": true,
+        "canAccessOpener": false,
+        "browserContextId": "2688A8866408BE9B80D6EEB0BA53642B"
+      }
+    ]
+  },
+  "anchors": [],
+  "clicks": [
+    {
+      "trusted": true,
+      "tag": "FLT-SEMANTICS",
+      "text": "Sold results"
+    },
+    {
+      "trusted": true,
+      "tag": "FLT-SEMANTICS",
+      "text": "Active listings"
+    }
+  ],
+  "text": "BIG TICKET\nHIGH CONFIDENCE\nDEMO \u00b7 Sample items and estimates\nVintage film camera\n$140\u2013$260 AI estimate\nEstimate\u2014not an appraisal or live marketplace result.\nBest place to try: eBay\neBay reaches camera collectors and makes model-by-model comparisons easier.\nImprove with a model-label photo\nPrice research\nActive listings show asking prices, not proven value. Completed-sale results are stronger evidence, but verify that the model, condition, accessories, and shipping terms truly match.\nSold results\nActive listings\nSearch: vintage 35mm film camera body\nI need to correct this item"
+}

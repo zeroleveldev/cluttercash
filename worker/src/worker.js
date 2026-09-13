@@ -1,4 +1,13 @@
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const MAX_UPLOAD_BYTES = MAX_IMAGE_BYTES + 64 * 1024;
+const SUPPORTED_GEMINI_MODEL = 'gemini-3.5-flash-lite';
+const MAX_OUTPUT_TOKENS = 8192;
+// Standard pricing: $0.30/M input, $2.50/M output (including thinking).
+// Reserve the ENTIRE input window, plus the entire model output window for
+// thinking AND the requested visible output. Do not assume thinking is free
+// or that maxOutputTokens alone bounds separately reported thinking tokens.
+// Sources and operator limitations: docs/WORKER_BETA_OPERATIONS.md.
+const MIN_REQUEST_COST_MICRO_USD = Math.ceil(1048576 * 0.30 + (65536 + MAX_OUTPUT_TOKENS) * 2.50);
 const INVITE_HEADER = 'X-ClutterCash-Invite';
 const DEVICE_HEADER = 'X-ClutterCash-Device';
 const REQUEST_HEADER = 'X-ClutterCash-Request';
@@ -78,6 +87,7 @@ const identitySchema = {
 
 export function createHandler({
   fetcher = fetch,
+  providerTimeoutMs = 45000,
   now = () => Date.now(),
   alertSender = sendOperationalAlert,
   telemetrySender = recordTelemetry,
@@ -207,6 +217,28 @@ export function createHandler({
       if (!registered) return json({ error: 'The invite could not be registered.' }, 503, cors);
       return json({ inviteCode, email: input.email }, 201, cors);
     }
+    if (url.pathname === '/v1/admin/invites/revoke' && request.method === 'POST') {
+      if (!await authorizedAdmin(request, env)) return json({ error: 'Owner authorization is required.' }, 401, cors);
+      let input;
+      try {
+        const body = await request.text();
+        if (body.length > 128) throw new Error();
+        input = JSON.parse(body);
+      } catch { return json({ error: 'Invalid revocation.' }, 400, cors); }
+      if (!input || typeof input.inviteHash !== 'string' || !/^[a-f0-9]{64}$/.test(input.inviteHash)
+        || Object.keys(input).some(key => key !== 'inviteHash')) return json({ error: 'Invalid revocation.' }, 400, cors);
+      // Static configuration deliberately retains precedence. Refuse a misleading
+      // success until both static allow-lists have been removed by the operator.
+      try {
+        const staticHashes = [...JSON.parse(env.BETA_INVITE_CODE_HASHES || '[]'), ...JSON.parse(env.BETA_OWNER_INVITE_CODE_HASHES || '[]')];
+        if (staticHashes.some(hash => String(hash).toLowerCase() === input.inviteHash)) {
+          return json({ error: 'Remove this hash from both static invite and owner lists first.' }, 409, cors);
+        }
+      } catch { return json({ error: 'Invalid access configuration.' }, 503, cors); }
+      const result = await pendingAccessRequestCall(env, '/invites/revoke', input);
+      return result?.revoked === true ? json({ revoked: true }, 200, cors)
+        : json({ error: 'Revocation unavailable.' }, 503, cors);
+    }
     const isScan = url.pathname === '/v1/scans' && request.method === 'POST';
     const isIdentity = url.pathname === '/v1/items/identify' && request.method === 'POST';
     const isTelemetry = url.pathname === '/v1/telemetry' && request.method === 'POST';
@@ -222,15 +254,47 @@ export function createHandler({
     if (isTelemetry) {
       const event = await parseTelemetry(request);
       if (!event) return json({ error: 'Invalid telemetry event.' }, 400, cors);
+      const quota = await pendingAccessRequestCall(env, '/telemetry/reserve', {
+        timestamp: now(), anonymous: inviteHash.startsWith('device:'),
+      });
+      if (!quota) return json({ error: 'Telemetry temporarily unavailable.' }, 503, cors);
+      if (quota.allowed !== true) return json({ error: 'Telemetry rate limit reached.' }, 429, cors);
       await telemetrySender(event, env);
       return json({ accepted: true }, 202, cors);
     }
 
     if (!env.GEMINI_API_KEY) return json({ error: 'Live analysis is not configured.' }, 503, cors);
 
+    if (env.GEMINI_MODEL !== SUPPORTED_GEMINI_MODEL
+      || positiveInteger(env.GEMINI_MAX_REQUEST_COST_MICRO_USD) < MIN_REQUEST_COST_MICRO_USD) {
+      return json({ error: 'Live analysis is temporarily unavailable.' }, 503, cors);
+    }
+
     let form;
     try {
-      form = await request.formData();
+      // Enforce actual streamed bytes, not just a forgeable Content-Length.
+      if (Number(request.headers.get('Content-Length')) > MAX_UPLOAD_BYTES) {
+        return json({ error: 'Upload exceeds the size limit.' }, 413, cors);
+      }
+      const reader = request.body?.getReader();
+      if (!reader) throw new Error('Missing upload');
+      const chunks = [];
+      let size = 0;
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          size += value.byteLength;
+          if (size > MAX_UPLOAD_BYTES) {
+            await reader.cancel();
+            return json({ error: 'Upload exceeds the size limit.' }, 413, cors);
+          }
+          chunks.push(value);
+        }
+      } finally { reader.releaseLock(); }
+      form = await new Response(new Blob(chunks), {
+        headers: { 'Content-Type': request.headers.get('Content-Type') || '' },
+      }).formData();
     } catch {
       return json({ error: 'A multipart image upload is required.' }, 400, cors);
     }
@@ -245,11 +309,34 @@ export function createHandler({
       return json({ error: 'Image must be between 1 byte and 8 MB.' }, 413, cors);
     }
 
+    // Closed multipart contract: reject duplicates, unknown keys and invalid
+    // context before reserving any allowance or provider budget.
+    const allowedFields = new Set(isIdentity
+      ? ['image', 'betaConsent', 'itemName', 'category']
+      : ['image', 'betaConsent']);
+    for (const key of form.keys()) {
+      if (!allowedFields.has(key) || form.getAll(key).length !== 1) {
+        return json({ error: 'Invalid upload fields.' }, 400, cors);
+      }
+    }
+    const itemName = form.get('itemName');
+    const category = form.get('category');
+    if (isIdentity && (typeof itemName !== 'string' || !itemName.trim() || itemName.length > 100
+      || (category !== null && (typeof category !== 'string' || category.length > 40)))) {
+      return json({ error: 'A valid item name (up to 100 characters) and optional category (up to 40 characters) are required.' }, 400, cors);
+    }
+
+    const bytes = new Uint8Array(await image.arrayBuffer());
+    if (imageMime(bytes) !== image.type) {
+      return json({ error: 'Image bytes must match JPEG, PNG, or WebP format.' }, 400, cors);
+    }
+
     const quota = await reserveProviderBudget(
       env,
       inviteHash,
       now(),
       ownerInviteAllowed(env, inviteHash),
+      request.headers.get('CF-Connecting-IP'),
     );
     if (!quota.available) {
       if (quota.shouldAlert) {
@@ -266,21 +353,19 @@ export function createHandler({
     let taskSchema = responseSchema;
     let validate = validateScan;
     if (isIdentity) {
-      const itemName = textField(form.get('itemName'), 100);
-      const category = textField(form.get('category'), 40) || 'Other';
-      if (!itemName) return json({ error: 'The existing item name is required.' }, 400, cors);
-      taskPrompt = `${identityPrompt}\nExisting broad identification (context only): ${JSON.stringify({ itemName, category })}`;
+      taskPrompt = `${identityPrompt}\nExisting broad identification (context only): ${JSON.stringify({ itemName: itemName.trim(), category: category?.trim() || 'Other' })}`;
       taskSchema = identitySchema;
       validate = validateIdentity;
     }
 
     try {
-      const bytes = new Uint8Array(await image.arrayBuffer());
-      const model = env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
+      const model = SUPPORTED_GEMINI_MODEL;
+      const providerBody = await withProviderDeadline(async (signal) => {
       const providerResponse = await fetcher(
         `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
         {
           method: 'POST',
+          signal,
           headers: { 'Content-Type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
           body: JSON.stringify({
             contents: [{ role: 'user', parts: [
@@ -288,7 +373,8 @@ export function createHandler({
               { inlineData: { mimeType: image.type, data: toBase64(bytes) } },
             ] }],
             generationConfig: {
-              temperature: 0.1,
+              maxOutputTokens: MAX_OUTPUT_TOKENS,
+              candidateCount: 1,
               responseMimeType: 'application/json',
               responseJsonSchema: taskSchema,
             },
@@ -300,12 +386,13 @@ export function createHandler({
         failure.status = providerResponse.status;
         throw failure;
       }
-      const providerBody = await providerResponse.json();
+      return await providerResponse.json();
+      }, providerTimeoutMs);
       const text = providerBody?.candidates?.[0]?.content?.parts?.[0]?.text;
       if (!text) throw new Error('Gemini returned no structured content');
       return json(validate(JSON.parse(text)), 200, cors);
     } catch (error) {
-      console.error(isIdentity ? 'identity_failed' : 'scan_failed', error instanceof Error ? error.message : 'unknown');
+      console.error(isIdentity ? 'identity_failed' : 'scan_failed');
       await alertSender({
         event: isIdentity ? 'identity_failed' : 'scan_failed',
         status: Number.isInteger(error?.status) ? error.status : 0,
@@ -315,6 +402,21 @@ export function createHandler({
         : 'The scan could not be completed. Please try again.' }, 502, cors);
     }
   };
+}
+
+// Race the complete body read, not only receipt of headers. Abort transport
+// on expiry; never retry a metered request or refund an attempted reservation.
+async function withProviderDeadline(operation, timeoutMs) {
+  const controller = new AbortController();
+  let timer;
+  const deadline = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new Error('Provider deadline exceeded'));
+    }, timeoutMs);
+  });
+  try { return await Promise.race([operation(controller.signal), deadline]); }
+  finally { clearTimeout(timer); }
 }
 
 function betaAccessConfigured(env) {
@@ -349,7 +451,7 @@ async function authorizedInviteHash(request, env) {
       allowed = [];
     }
     if (allowed.includes(inviteHash)) return inviteHash;
-    if (await registeredInviteAllowed(env, inviteHash)) return inviteHash;
+    if ((await registeredInviteAllowed(env, inviteHash))?.allowed === true) return inviteHash;
     return null;
   }
 
@@ -358,7 +460,9 @@ async function authorizedInviteHash(request, env) {
     return null;
   }
   const deviceHash = await sha256Hex(deviceToken);
-  if (await registeredInviteAllowed(env, deviceHash)) return deviceHash;
+  const registration = await registeredInviteAllowed(env, deviceHash);
+  if (!registration || registration.revoked === true) return null;
+  if (registration.allowed === true) return deviceHash;
   return `device:${deviceHash}`;
 }
 
@@ -437,15 +541,15 @@ function durableStub(env) {
 async function registeredInviteAllowed(env, inviteHash) {
   try {
     const stub = durableStub(env);
-    if (!stub) return false;
+    if (!stub) return null;
     const response = await stub.fetch(new Request('https://usage.internal/invites/check', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ inviteHash }),
     }));
-    return response.ok && (await response.json())?.allowed === true;
+    return response.ok ? await response.json() : null;
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -538,7 +642,13 @@ async function reserveAccessRequest(env, email, ip, timestamp) {
   }
 }
 
-async function reserveProviderBudget(env, inviteHash, timestamp, unlimited = false) {
+async function reserveProviderBudget(env, inviteHash, timestamp, unlimited = false, ip = null) {
+  const anonymous = inviteHash.startsWith('device:');
+  const day = new Date(timestamp).toISOString().slice(0, 10);
+  // Only Cloudflare's edge-supplied header, never client forwarding headers.
+  if (anonymous && (!ip || ip.length > 45 || !/^[0-9a-fA-F:.]+$/.test(ip))) {
+    return { available: false, status: 503 };
+  }
   if (!env.BETA_USAGE_LIMITER?.idFromName || !env.BETA_USAGE_LIMITER?.get) {
     return { available: false, status: 503 };
   }
@@ -553,7 +663,12 @@ async function reserveProviderBudget(env, inviteHash, timestamp, unlimited = fal
         inviteHash,
         inviteLimit: positiveInteger(env.BETA_WEEKLY_REQUEST_LIMIT),
         inviteWindowMs: INVITE_WINDOW_MS,
-        anonymous: inviteHash.startsWith('device:'),
+        anonymous,
+        ...(anonymous ? {
+          networkHash: await sha256Hex(`analysis:${day}:${ip}`),
+          trialBudgetMicroUsd: positiveInteger(env.BETA_ANONYMOUS_DAILY_BUDGET_MICRO_USD),
+          networkLimit: positiveInteger(env.BETA_ANONYMOUS_NETWORK_DAILY_LIMIT),
+        } : {}),
         ...(unlimited ? { unlimited: true } : {}),
         budgetMicroUsd: positiveInteger(env.BETA_DAILY_BUDGET_MICRO_USD),
         requestCostMicroUsd: positiveInteger(env.GEMINI_MAX_REQUEST_COST_MICRO_USD),
@@ -622,20 +737,50 @@ export class BetaUsageLimiter {
       return json({ error: 'Invalid request.' }, 400);
     }
 
+    if (pathname === '/telemetry/reserve') {
+      if (!positiveInteger(input?.timestamp) || typeof input?.anonymous !== 'boolean') {
+        return json({ error: 'Invalid telemetry reservation.' }, 400);
+      }
+      const minute = Math.floor(input.timestamp / 60000);
+      const result = await this.storage.transaction(async transaction => {
+        const saved = await transaction.get('telemetry:minute');
+        const counts = saved?.minute === minute ? saved : { minute, total: 0, anonymous: 0 };
+        if (counts.total >= 600 || (input.anonymous && counts.anonymous >= 120)) return { allowed: false };
+        await transaction.put({ 'telemetry:minute': {
+          minute, total: counts.total + 1, anonymous: counts.anonymous + (input.anonymous ? 1 : 0),
+        } });
+        return { allowed: true };
+      });
+      return json(result);
+    }
+    if (pathname === '/invites/revoke') {
+      const hash = input?.inviteHash;
+      if (typeof hash !== 'string' || !/^[a-f0-9]{64}$/.test(hash)) return json({ error: 'Invalid revocation.' }, 400);
+      await this.storage.transaction(async transaction => {
+        await transaction.put(`revoked-invite:${hash}`, true);
+        await transaction.delete(`allowed-invite:${hash}`);
+      });
+      return json({ revoked: true });
+    }
     if (pathname === '/invites/register') {
       const inviteHash = typeof input?.inviteHash === 'string' ? input.inviteHash.toLowerCase() : '';
       const createdAt = Number.isSafeInteger(input?.createdAt) && input.createdAt > 0 ? input.createdAt : 0;
       if (!/^[a-f0-9]{64}$/.test(inviteHash) || !createdAt) {
         return json({ error: 'Invalid invite registration.' }, 400);
       }
-      await this.storage.put(`allowed-invite:${inviteHash}`, { createdAt });
-      return json({ registered: true }, 201);
+      const registered = await this.storage.transaction(async transaction => {
+        if (await transaction.get(`revoked-invite:${inviteHash}`)) return false;
+        await transaction.put({ [`allowed-invite:${inviteHash}`]: { createdAt } });
+        return true;
+      });
+      return json({ registered }, registered ? 201 : 409);
     }
 
     if (pathname === '/invites/check') {
       const inviteHash = typeof input?.inviteHash === 'string' ? input.inviteHash.toLowerCase() : '';
       if (!/^[a-f0-9]{64}$/.test(inviteHash)) return json({ allowed: false });
-      return json({ allowed: Boolean(await this.storage.get(`allowed-invite:${inviteHash}`)) });
+      const revoked = await this.storage.get(`revoked-invite:${inviteHash}`) === true;
+      return json({ allowed: !revoked && Boolean(await this.storage.get(`allowed-invite:${inviteHash}`)), ...(revoked ? { revoked: true } : {}) });
     }
 
     if (pathname.startsWith('/access-requests/') && pathname !== '/access-requests/reserve') {
@@ -781,13 +926,25 @@ export class BetaUsageLimiter {
     const inviteWindowMs = positiveInteger(input?.inviteWindowMs);
     const anonymous = input?.anonymous === true;
     const unlimited = input?.unlimited === true && !anonymous;
+    const trialBudgetMicroUsd = positiveInteger(input?.trialBudgetMicroUsd);
+    const networkLimit = positiveInteger(input?.networkLimit);
+    const networkHash = input?.networkHash;
     const budgetMicroUsd = positiveInteger(input?.budgetMicroUsd);
     const requestCostMicroUsd = positiveInteger(input?.requestCostMicroUsd);
     if (!day || !timestamp || !inviteHash || !inviteLimit || !inviteWindowMs || !budgetMicroUsd || !requestCostMicroUsd) {
       return json({ error: 'Invalid reservation.' }, 400);
     }
 
+    if (anonymous && (!trialBudgetMicroUsd || trialBudgetMicroUsd >= budgetMicroUsd
+      || !networkLimit || !/^[a-f0-9]{64}$/.test(networkHash || ''))) {
+      return json({ error: 'Invalid trial reservation.' }, 400);
+    }
+
     const result = await this.storage.transaction(async (transaction) => {
+      const trialKey = `${day}:trial-budget`;
+      const networkKey = `${day}:analysis-network:${networkHash}`;
+      const trialUsed = anonymous ? Number(await transaction.get(trialKey)) || 0 : 0;
+      const networkUsed = anonymous ? Number(await transaction.get(networkKey)) || 0 : 0;
       const inviteKey = `invite:${inviteHash}`;
       const anonymousKey = `anonymous:${inviteHash}`;
       const budgetKey = `${day}:budget`;
@@ -798,11 +955,14 @@ export class BetaUsageLimiter {
             .filter((usedAt) => Number.isSafeInteger(usedAt) && usedAt > timestamp - inviteWindowMs);
       const anonymousUsed = anonymous ? Number(await transaction.get(anonymousKey)) || 0 : 0;
       const budgetUsed = Number(await transaction.get(budgetKey)) || 0;
-      if (anonymous && anonymousUsed >= inviteLimit) {
+      if (anonymous && anonymousUsed >= 3) {
         return { allowed: false, reason: 'anonymous_limit', shouldAlert: false };
       }
       if (!anonymous && !unlimited && recent.length >= inviteLimit) {
         return { allowed: false, reason: 'invite_limit', shouldAlert: false };
+      }
+      if (anonymous && (trialUsed + requestCostMicroUsd > trialBudgetMicroUsd || networkUsed >= networkLimit)) {
+        return { allowed: false, reason: 'trial_capacity', shouldAlert: false };
       }
       if (budgetUsed + requestCostMicroUsd > budgetMicroUsd) {
         const alreadyAlerted = await transaction.get(alertKey) === true;
@@ -811,7 +971,7 @@ export class BetaUsageLimiter {
       }
       await transaction.put({
         ...(anonymous
-          ? { [anonymousKey]: anonymousUsed + 1 }
+          ? { [anonymousKey]: anonymousUsed + 1, [trialKey]: trialUsed + requestCostMicroUsd, [networkKey]: networkUsed + 1 }
           : unlimited
             ? {}
             : { [inviteKey]: [...recent, timestamp] }),
@@ -933,20 +1093,37 @@ function json(value, status = 200, cors = {}) {
   });
 }
 
+// Header identification only, not a full decoder or safety guarantee.
+function imageMime(bytes) {
+  const starts = signature => bytes.length >= signature.length && signature.every((value, index) => bytes[index] === value);
+  if (starts([255, 216, 255])) return 'image/jpeg';
+  if (starts([137, 80, 78, 71, 13, 10, 26, 10])) return 'image/png';
+  if (bytes.length >= 12 && starts([82, 73, 70, 70])
+    && [87, 69, 66, 80].every((value, index) => bytes[index + 8] === value)) return 'image/webp';
+  return null;
+}
+
 function validateScan(value) {
-  if (!value || typeof value.sceneSummary !== 'string' || !Array.isArray(value.items) || value.items.length === 0) {
+  if (!value || typeof value.sceneSummary !== 'string' || !Array.isArray(value.items)) {
     throw new Error('Invalid Gemini response');
   }
   const levels = new Set(['low', 'medium', 'high']);
   const routes = new Set(['sell', 'bundle', 'donate', 'recycle', 'keep']);
   const marketplaces = new Set(['ebay', 'facebookMarketplace', 'mercari', 'localPickup', 'consignment', 'donate']);
+  const ids = new Set();
   const items = value.items.slice(0, 20).map((item, index) => {
     if (!item || typeof item.name !== 'string') throw new Error('Invalid Gemini item');
-    const low = finite(item.lowValue);
-    const typical = finite(item.typicalValue);
-    const high = finite(item.highValue);
+    const id = item.id ?? `item-${index + 1}`;
+    if (typeof id !== 'string' || !id.trim() || id.length > 128 || ids.has(id)) {
+      throw new Error('Invalid or duplicate item ID');
+    }
+    ids.add(id);
+    const low = price(item.lowValue);
+    const typical = price(item.typicalValue);
+    const high = price(item.highValue);
+    if (low > typical || typical > high) throw new Error('Invalid potential value range');
     return {
-      id: String(item.id || `item-${index + 1}`),
+      id,
       name: item.name.slice(0, 100),
       category: String(item.category || 'Other').slice(0, 40),
       lowValue: Math.min(low, typical, high),
@@ -975,21 +1152,39 @@ function validateIdentity(value) {
   const levels = new Set(['low', 'medium', 'high']);
   const marketplaces = new Set(['ebay', 'facebookMarketplace', 'mercari', 'localPickup', 'consignment', 'donate']);
   return {
-    exactName: value.exactName.slice(0, 100),
-    manufacturer: String(value.manufacturer || '').slice(0, 60),
-    model: String(value.model || '').slice(0, 80),
+    exactName: identityText(value.exactName, value, 100),
+    manufacturer: identityText(value.manufacturer, value, 60),
+    model: identityText(value.model, value, 80),
     confidence: levels.has(value.confidence) ? value.confidence : 'low',
     serialDetected: value.serialDetected === true,
-    searchQuery: String(value.searchQuery || value.exactName).slice(0, 120),
+    // Avoid an additional free-form label-derived marketplace query.
+    searchQuery: identityText(value.exactName, value, 100),
 
     marketplace: marketplaces.has(value.marketplace) ? value.marketplace : 'localPickup',
-    marketplaceReason: String(value.marketplaceReason || '').slice(0, 240),
+    marketplaceReason: identityText(value.marketplaceReason, value, 240),
 
   };
 }
 
+// Best effort only: redact an exact value if the model supplies an unwanted
+// serialNumber field. Never solicit serials or guess from useful model numbers.
+// Unmarked/changed serials cannot be reliably recognized; disclose this in UI.
+function identityText(input, identity, maxLength) {
+  let text = typeof input === 'string' ? input : '';
+  const serial = typeof identity.serialNumber === 'string' ? identity.serialNumber.trim() : '';
+  if (serial) text = text.split(serial).join('');
+  return text.trim().slice(0, maxLength);
+}
+
 function textField(value, maxLength) {
   return typeof value === 'string' ? value.trim().slice(0, maxLength) : '';
+}
+
+function price(value) {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1000000) {
+    throw new Error('Unsupported potential value');
+  }
+  return value;
 }
 
 function finite(value) {

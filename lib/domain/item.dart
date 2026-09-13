@@ -80,9 +80,19 @@ class ClutterItem {
     status: status ?? this.status,
     category: category,
     reason: reason,
-    searchQuery: searchQuery ?? this.searchQuery,
-    marketplace: marketplace ?? this.marketplace,
-    marketplaceReason: marketplaceReason ?? this.marketplaceReason,
+    searchQuery:
+        searchQuery ??
+        (name != null && name != this.name ? name : this.searchQuery),
+    marketplace:
+        marketplace ??
+        (name != null && name != this.name
+            ? Marketplace.localPickup
+            : this.marketplace),
+    marketplaceReason:
+        marketplaceReason ??
+        (name != null && name != this.name
+            ? 'Identity corrected. Compare marketplaces and verify suitability before selling.'
+            : this.marketplaceReason),
 
     boxLeft: boxLeft,
     boxTop: boxTop,

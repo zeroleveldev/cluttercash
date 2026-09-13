@@ -1,0 +1,52 @@
+[
+  {
+    "label": "Sold results",
+    "expected": "https://www.ebay.com/sch/i.html?_nkw=Verified+smoke+camera+%26+lens&LH_Complete=1&LH_Sold=1",
+    "newTargets": [
+      {
+        "targetId": "8FA2F7A643AFBD61853F3D97C9D21F7F",
+        "type": "page",
+        "title": "Error Page | eBay",
+        "url": "https://www.ebay.com/sch/i.html?_nkw=Verified+smoke+camera+%26+lens&LH_Complete=1&LH_Sold=1",
+        "attached": false,
+        "openerId": "4B9C97230ACE76279E9ACEEC3D2C256D",
+        "canAccessOpener": false,
+        "openerFrameId": "4B9C97230ACE76279E9ACEEC3D2C256D",
+        "browserContextId": "6E00ACEB477C178228195D18C6073707"
+      }
+    ],
+    "clicks": [
+      {
+        "trusted": true,
+        "text": "Sold results"
+      }
+    ]
+  },
+  {
+    "label": "Active listings",
+    "expected": "https://www.ebay.com/sch/i.html?_nkw=Verified+smoke+camera+%26+lens",
+    "newTargets": [
+      {
+        "targetId": "A107148501CAA777D274B0DB435BF41F",
+        "type": "page",
+        "title": "ebay.com/sch/i.html?_nkw=Verified+smoke+camera+%26+lens",
+        "url": "https://www.ebay.com/sch/i.html?_nkw=Verified+smoke+camera+%26+lens",
+        "attached": false,
+        "openerId": "4B9C97230ACE76279E9ACEEC3D2C256D",
+        "canAccessOpener": false,
+        "openerFrameId": "4B9C97230ACE76279E9ACEEC3D2C256D",
+        "browserContextId": "6E00ACEB477C178228195D18C6073707"
+      }
+    ],
+    "clicks": [
+      {
+        "trusted": true,
+        "text": "Sold results"
+      },
+      {
+        "trusted": true,
+        "text": "Active listings"
+      }
+    ]
+  }
+]

@@ -1,15 +1,324 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+
+for (const ids of [['same', 'same'], ['item-2', undefined], ['x'.repeat(129), 'ok'], ['', 'ok']]) {
+  test(`CC-05 rejects invalid or colliding IDs ${JSON.stringify(ids)}`, async () => {
+    const scan = {sceneSummary:'Shelf',items:ids.map(id=>({id,name:'Lamp',lowValue:10,typicalValue:10,highValue:10}))};
+    const fetcher = async () => Response.json({candidates:[{content:{parts:[{text:JSON.stringify(scan)}]}}]});
+    const response = await createHandler({fetcher})(imageRequest(), env);
+    assert.equal(response.status,502);
+  });
+}
+
 import { BetaUsageLimiter, createHandler } from '../src/worker.js';
+
+
+test('CC-15 anonymous telemetry has a rotation-proof independent bounded minute pool',async()=>{
+ const local=memoryDurableEnv();let timestamp=1800000000000;let events=0;
+ const handler=createHandler({now:()=>timestamp,telemetrySender:async()=>{events++;}});
+ const send=(i)=>{const req=telemetryRequest({event:'project_created'});req.headers.delete('X-ClutterCash-Invite');req.headers.set('X-ClutterCash-Device',String(i).padStart(64,'0'));return handler(req,local);};
+ const results=await Promise.all(Array.from({length:130},(_,i)=>send(i)));
+ assert.equal(results.filter(r=>r.status===202).length,120);
+ assert.equal(results.filter(r=>r.status===429).length,10);assert.equal(events,120);
+ assert.equal((await handler(telemetryRequest({event:'project_created'}),local)).status,202,'anonymous pool does not starve approved telemetry');
+ timestamp+=60000;assert.equal((await send(0)).status,202);
+ const analysis=createHandler({now:()=>timestamp,fetcher:quotaProvider});
+ for(let i=0;i<3;i++) assert.equal((await analysis(anonymousRequest('0'.repeat(64)),local)).status,200,'telemetry consumes no free analyses');
+ assert.equal((await analysis(anonymousRequest('0'.repeat(64)),local)).status,429);
+});
+test('CC-15 all telemetry is capped and storage contains no per-user telemetry identifiers',async()=>{
+ const values=new Map();const storage={get:async k=>values.get(k),put:async obj=>{for(const [k,v] of Object.entries(obj))values.set(k,v);},transaction:async cb=>cb(storage)};
+ const limiter=new BetaUsageLimiter({storage});
+ const reserve=timestamp=>limiter.fetch(new Request('https://usage.internal/telemetry/reserve',{method:'POST',body:JSON.stringify({timestamp,anonymous:false})}));
+ for(let i=0;i<600;i++) assert.equal((await (await reserve(1800000000000)).json()).allowed,true);
+ assert.equal((await (await reserve(1800000000000)).json()).allowed,false);
+ assert.equal((await (await reserve(1800000060000)).json()).allowed,true);
+ assert.deepEqual([...values.keys()],['telemetry:minute']);
+ assert.deepEqual(values.get('telemetry:minute'),{minute:30000001,total:1,anonymous:0});
+});
+
+function revokeRequest(inviteHash, key = env.ADMIN_API_KEY) {
+  return new Request('https://api.example/v1/admin/invites/revoke', {method:'POST',
+    headers:{'Content-Type':'application/json', Authorization:`Bearer ${key}`},
+    body:JSON.stringify({inviteHash})});
+}
+for (const device of [false,true]) test(`CC-14 revoked registered ${device?'device':'invite'} stops all protected routes`,async()=>{
+  const local=memoryDurableEnv();const token='b'.repeat(64);const hash=await testSha256Hex(token);
+  const stub=local.BETA_USAGE_LIMITER.get('global');
+  const register=()=>stub.fetch(new Request('https://usage.internal/invites/register',{method:'POST',body:JSON.stringify({inviteHash:hash,createdAt:Date.now()})}));
+  assert.equal((await register()).status,201);
+  const handler=createHandler({fetcher:quotaProvider,telemetrySender:async()=>{}});
+  const request=(route)=>{const req=route==='scans'?imageRequest():route==='identity'?labelRequest():telemetryRequest({event:'project_created'});req.headers.delete('X-ClutterCash-Invite');req.headers.set(device?'X-ClutterCash-Device':'X-ClutterCash-Invite',token);return req;};
+  assert.equal((await handler(request('telemetry'),local)).status,202);
+  assert.equal((await handler(revokeRequest(hash,'wrong'),local)).status,401);
+  assert.equal((await handler(request('telemetry'),local)).status,202);
+  assert.equal((await handler(revokeRequest(hash),local)).status,200);
+  for(const route of ['scans','identity','telemetry']) assert.equal((await handler(request(route),local)).status,401);
+  assert.equal((await register()).status,409,'old approval must not restore revoked credential');
+  assert.equal((await handler(revokeRequest(hash),local)).status,200,'idempotent');
+  assert.equal((await handler(telemetryRequest({event:'project_created'}),local)).status,202,'other credentials survive');
+});
+test('CC-14 static and owner hashes require explicit removal before durable revocation',async()=>{
+ const local=memoryDurableEnv(); const handler=createHandler();const hash=await testSha256Hex('test-invite');
+ assert.equal((await handler(revokeRequest(hash),local)).status,409);
+ const ownerHash='a'.repeat(64);
+ assert.equal((await handler(revokeRequest(ownerHash),{...local,BETA_OWNER_INVITE_CODE_HASHES:JSON.stringify([ownerHash])})).status,409);
+ for(const invalid of ['A'.repeat(64),' '+ownerHash,123,null]) assert.equal((await handler(revokeRequest(invalid),local)).status,400);
+ assert.equal((await handler(revokeRequest(ownerHash),{...local,BETA_USAGE_LIMITER:undefined})).status,503);
+});
+
+test('CC-12 valid empty scene succeeds after one provider attempt', async () => {
+  let calls=0;
+  const expected={sceneSummary:'Empty shelf',items:[]};
+  const response=await createHandler({fetcher:async()=>{calls++;return Response.json({candidates:[{content:{parts:[{text:JSON.stringify(expected)}]}}]});}})(imageRequest(),env);
+  assert.equal(response.status,200); assert.deepEqual(await response.json(),expected); assert.equal(calls,1);
+});
+for (const route of ['scans','items/identify']) for (const [mime,bytes,valid] of [
+ ['image/jpeg',[255,216,255],true],['image/png',[137,80,78,71,13,10,26,10],true],
+ ['image/webp',[82,73,70,70,0,0,0,0,87,69,66,80],true],
+ ['image/jpeg',[65,66,67],false],['image/jpeg',[255,216],false],
+ ['image/png',[137,80,78,71],false],['image/webp',[82,73,70,70,0,0,0,0,0,0,0,0],false],
+ ['image/jpeg',[137,80,78,71,13,10,26,10],false],
+ ['image/png',[255,216,255],false],['image/webp',[255,216,255],false],
+]) test(`CC-19 ${route} ${mime} ${bytes} valid=${valid}`,async()=>{
+ const original=route==='scans'?imageRequest():labelRequest(); const form=await original.formData();
+ form.set('image',new Blob([new Uint8Array(bytes)],{type:mime}),'../../private.jpg');
+ let calls=0;let quotas=0;
+ const response=await createHandler({fetcher:async(_url,init)=>{calls++;const part=JSON.parse(init.body).contents[0].parts[1].inlineData; assert.equal(part.mimeType,mime); assert.equal(part.data,Buffer.from(bytes).toString('base64')); return route==='scans'?quotaProvider():Response.json({candidates:[{content:{parts:[{text:JSON.stringify({exactName:'Camera',confidence:'high'})}]}}]});}})(new Request(original.url,{method:'POST',headers: {'X-ClutterCash-Invite':'test-invite'},body:form}),{...env,BETA_USAGE_LIMITER:{idFromName:n=>n,get:()=>({fetch:async()=>{quotas++;return Response.json({allowed:true});}})}});
+ assert.equal(response.status,valid?200:400);assert.equal(calls,valid?1:0);assert.equal(quotas,valid?1:0);
+});
+
+for (const route of ['scans', 'items/identify']) for (const phase of ['headers', 'body']) {
+  test(`CC-11 ${route} aborts stalled ${phase} without retry`, async () => {
+    let signal; let calls = 0;
+    const fetcher = async (_url, init) => {
+      calls++; signal = init.signal;
+      if (phase === 'headers') return new Promise(() => {});
+      return new Response(new ReadableStream({start(c) {
+        signal?.addEventListener('abort', () => c.error(new Error('aborted')), {once:true});
+      }}));
+    };
+    const result = await Promise.race([
+      createHandler({fetcher, providerTimeoutMs:20, alertSender:async()=>{}})(route === 'scans' ? imageRequest() : labelRequest(), env),
+      new Promise(resolve => setTimeout(() => resolve(null), 150)),
+    ]);
+    assert.ok(result, 'complete provider deadline must settle');
+    assert.equal(result.status, 502);
+    assert.equal(signal.aborted, true);
+    assert.equal(calls, 1);
+  });
+}
+
+
+for (const route of ['scans', 'items/identify']) test(`CC-01 ${route} bounds actual provider generation`, async () => {
+  let payload;
+  const response = await createHandler({fetcher:async (url, init)=>{
+    payload=JSON.parse(init.body);
+    assert.match(url, /\/gemini-3\.5-flash-lite:generateContent$/);
+    return route === 'scans' ? quotaProvider() : Response.json({candidates:[{content:{parts:[{text:JSON.stringify({exactName:'Verified camera',model:'Camera',confidence:'high'})}]}}]});
+  }})(route==='scans'?imageRequest():labelRequest(), {...env,GEMINI_MAX_REQUEST_COST_MICRO_USD:'500000'});
+  assert.equal(response.status,200);
+  assert.equal(payload.generationConfig.maxOutputTokens,8192);
+  assert.equal(payload.generationConfig.candidateCount,1);
+  assert.equal(payload.generationConfig.temperature,undefined);
+  assert.equal(payload.tools,undefined);
+});
+for(const config of [{GEMINI_MODEL:undefined},{GEMINI_MAX_REQUEST_COST_MICRO_USD:'invalid'},{GEMINI_MAX_REQUEST_COST_MICRO_USD:'498893.5'},{GEMINI_MAX_REQUEST_COST_MICRO_USD:'9007199254740992'},{GEMINI_MODEL:'other-model'},{GEMINI_MAX_REQUEST_COST_MICRO_USD:'10000'},{GEMINI_MAX_REQUEST_COST_MICRO_USD:undefined},{GEMINI_MAX_REQUEST_COST_MICRO_USD:'498892'}]) test(`CC-01 unsafe cost configuration ${JSON.stringify(config)}`,async()=>{
+  let calls=0; let quotas=0;
+  const response=await createHandler({fetcher:async()=>{calls++;return quotaProvider();}})(imageRequest(),{...env,...config,
+    BETA_USAGE_LIMITER:{idFromName:n=>n,get:()=>({fetch:async()=>{quotas++;return Response.json({allowed:true});}})},
+  });
+  assert.equal(response.status,503);assert.equal(calls,0);assert.equal(quotas,0);
+});
+test('CC-01 derived floor is accepted and forwarded exactly to reservation',async()=>{
+  let reserved;
+  const exact={...env,GEMINI_MAX_REQUEST_COST_MICRO_USD:'498893',BETA_USAGE_LIMITER:{idFromName:n=>n,get:()=>({fetch:async request=>{reserved=await request.json();return Response.json({allowed:true});}})}};
+  assert.equal((await createHandler({fetcher:quotaProvider})(imageRequest(),exact)).status,200);
+  assert.equal(reserved.requestCostMicroUsd,Math.ceil(1048576*.3+(65536+8192)*2.5));
+});
+
+for (const declared of [undefined, '1', String(10 * 1024 * 1024)]) test(`CC-01 bounds streamed multipart before reservation declared=${declared}`, async () => {
+  let calls = 0; let quotas = 0; let cancelled = false; let pulls = 0;
+  const form = new FormData();
+  form.set('image', new Blob(['small'], {type: 'image/jpeg'}), 'photo.jpg');
+  form.set('betaConsent', 'true');
+  form.set('extra', 'x'.repeat(9 * 1024 * 1024));
+  // Serialize first: Node 24's Undici FormData producer independently throws
+  // after cancellation. A controlled wire-byte stream tests Worker cancellation
+  // without suppressing unhandled rejections or removing the production cancel.
+  const encoded = new Response(form);
+  const bytes = new Uint8Array(await encoded.arrayBuffer());
+  let offset = 0;
+  const body = new ReadableStream({
+    pull(controller) {
+      pulls++;
+      if (offset >= bytes.length) { controller.close(); return; }
+      controller.enqueue(bytes.slice(offset, offset + 65536));
+      offset += 65536;
+    },
+    cancel() { cancelled = true; },
+  });
+  const request = new Request('https://api.example/v1/scans', {
+    method: 'POST', body, duplex: 'half', headers: {
+      'X-ClutterCash-Invite': 'test-invite',
+      'Content-Type': encoded.headers.get('Content-Type'),
+      ...(declared === undefined ? {} : {'Content-Length': declared}),
+    },
+  });
+  const response = await createHandler({fetcher: async () => { calls++; return quotaProvider(); }})(request, {
+    ...env, BETA_USAGE_LIMITER: {idFromName: n => n, get: () => ({fetch: async () => {
+      quotas++; return Response.json({allowed: true});
+    }})},
+  });
+  assert.equal(response.status, 413); assert.equal(calls, 0); assert.equal(quotas, 0);
+  if (declared !== String(10 * 1024 * 1024)) {
+    assert.equal(cancelled, true);
+    assert.ok(pulls < Math.ceil(bytes.length / 65536), 'must stop before consuming entire upload');
+  }
+});
+
+
+
+for (const route of ['scans', 'items/identify']) {
+  for (const failure of ['model', 'body', 'transport']) {
+    test(`CC-08 ${route} ${failure} keeps private exceptions out of logs/client/alerts`, async () => {
+      const privateText = 'PRIVATE-SYNTHETIC-photo-address';
+      const logs = []; const alerts = [];
+      const original = console.error;
+      console.error = (...args) => logs.push(args);
+      try {
+        const fetcher = async () => {
+          if (failure === 'transport') throw new Error(privateText);
+          if (failure === 'body') return new Response(privateText);
+          return Response.json({candidates:[{content:{parts:[{text:privateText}]}}]});
+        };
+        const response = await createHandler({fetcher, alertSender: async event => alerts.push(event)})(
+          route === 'scans' ? imageRequest() : labelRequest(), env);
+        assert.equal(response.status, 502);
+        assert.equal(JSON.stringify([logs, alerts, await response.text()]).includes('PRIVATE'), false);
+        assert.deepEqual(logs, [[route === 'scans' ? 'scan_failed' : 'identity_failed']]);
+      } finally { console.error = original; }
+    });
+  }
+}
+
+for (const invalid of ['missingName', 'blankName', 'longName', 'fileName', 'longCategory', 'fileCategory', 'duplicateName', 'duplicateImage', 'duplicateConsent', 'unknown', 'scanName']) {
+  test(`CC-13 rejects ${invalid} before quota/provider`, async () => {
+    const scan = invalid === 'scanName';
+    const form = await (scan ? imageRequest() : labelRequest()).formData();
+    if (invalid === 'missingName') form.delete('itemName');
+    if (invalid === 'blankName') form.set('itemName', '  ');
+    if (invalid === 'longName') form.set('itemName', 'x'.repeat(101));
+    if (invalid === 'fileName') form.set('itemName', new Blob(['private']));
+    if (invalid === 'longCategory') form.set('category', 'x'.repeat(41));
+    if (invalid === 'fileCategory') form.set('category', new Blob(['private']));
+    if (invalid === 'duplicateName') form.append('itemName', 'extra');
+    if (invalid === 'duplicateImage') form.append('image', new Blob(['extra'], {type:'image/jpeg'}));
+    if (invalid === 'duplicateConsent') form.append('betaConsent', 'true');
+    if (invalid === 'unknown') form.append('metadata', 'private');
+    if (invalid === 'scanName') form.append('itemName', 'unexpected');
+    let quotaCalls = 0; let providerCalls = 0;
+    const guardedEnv = {...env, BETA_USAGE_LIMITER: {
+      idFromName: name => name,
+      get: () => ({fetch: async () => { quotaCalls++; return Response.json({allowed:true}); }}),
+    }};
+    const request = new Request(`https://api.example/v1/${scan ? 'scans' : 'items/identify'}`, {
+      method:'POST', body:form, headers:{'X-ClutterCash-Invite':'test-invite'},
+    });
+    const response = await createHandler({fetcher: async () => { providerCalls++; throw new Error('unused'); }})(request, guardedEnv);
+    assert.equal(quotaCalls, 0);
+    assert.equal(providerCalls, 0);
+    assert.equal(response.status, 400);
+  });
+}
+
+
+
+for (const value of [1e308, 1000001, -1, null, 'NaN']) {
+  test(`CC-03 rejects unsupported provider price ${value}`, async () => {
+    const fetcher = async () => Response.json({candidates:[{content:{parts:[{text:JSON.stringify({sceneSummary:'Shelf',items:[{name:'Lamp',lowValue:value,typicalValue:value,highValue:value}]})}]}}]});
+    const response = await createHandler({fetcher})(imageRequest(), env);
+    assert.equal(response.status,502);
+  });
+}
+
+function anonymousRequest(token, ip = '203.0.113.10') {
+  const request = imageRequest();
+  request.headers.delete('X-ClutterCash-Invite');
+  request.headers.set('X-ClutterCash-Device', token.padEnd(64, 'a'));
+  if (ip) request.headers.set('CF-Connecting-IP', ip);
+  else request.headers.delete('CF-Connecting-IP');
+  return request;
+}
+const quotaProvider = async () => Response.json({candidates:[{content:{parts:[{text:JSON.stringify({sceneSummary:'Shelf',items:[{name:'Lamp',lowValue:1,typicalValue:2,highValue:3}]})}]}}]});
+
+test('CC-02 parallel rotated trials cannot consume invited capacity; owner stays globally capped', async () => {
+  const limited = {...memoryDurableEnv(), BETA_ANONYMOUS_DAILY_BUDGET_MICRO_USD:'3000000', BETA_ANONYMOUS_NETWORK_DAILY_LIMIT:'6', BETA_DAILY_BUDGET_MICRO_USD:'5000000', BETA_OWNER_INVITE_CODE_HASHES:env.BETA_INVITE_CODE_HASHES};
+  let calls = 0;
+  const handler = createHandler({fetcher:async (...args) => {calls++; return quotaProvider(...args);}});
+  const results = await Promise.all(Array.from({length:30}, (_,i) => handler(anonymousRequest(`token-${i}`, `203.0.113.${i+1}`),limited)));
+  assert.equal(results.filter(r=>r.status===200).length,6);
+  assert.equal(calls,6);
+  const owners = await Promise.all(Array.from({length:10},()=>handler(imageRequest(),limited)));
+  assert.equal(owners.filter(r=>r.status===200).length,4);
+  assert.equal(calls,10);
+});
+
+test('CC-02 rotated IDs on one trusted network share six daily attempts', async () => {
+  const limited = {...memoryDurableEnv(), BETA_ANONYMOUS_DAILY_BUDGET_MICRO_USD:'3500000', BETA_ANONYMOUS_NETWORK_DAILY_LIMIT:'6'};
+  const handler = createHandler({fetcher:quotaProvider});
+  const results = await Promise.all(Array.from({length:15},(_,i)=>handler(anonymousRequest(`rotation-${i}`),limited)));
+  assert.equal(results.filter(r=>r.status===200).length,6);
+});
+
+test('CC-02 missing trusted IP fails closed; forwarded spoof is not accepted', async () => {
+  const request = anonymousRequest('no-ip', null);
+  request.headers.set('X-Forwarded-For','203.0.113.99');
+  let calls=0;
+  const response=await createHandler({fetcher:async()=>{calls++;return quotaProvider();}})(request, memoryDurableEnv());
+  assert.equal(response.status,503);
+  assert.equal(calls,0);
+});
+
+test('CC-02 anonymous reservation contains only day-scoped network hash', async () => {
+  let reservation;
+  const limited={...env,BETA_USAGE_LIMITER:{idFromName:n=>n,get:()=>({fetch:async request=>{
+    if(new URL(request.url).pathname!=='/reserve') return Response.json({allowed:false});
+    reservation=await request.json();return Response.json({allowed:true});
+  }})}};
+  assert.equal((await createHandler({fetcher:quotaProvider})(anonymousRequest('hash-check'),limited)).status,200);
+  assert.match(reservation.networkHash,/^[a-f0-9]{64}$/);
+  assert.equal(JSON.stringify(reservation).includes('203.0.113.10'),false);
+});
+
+test('CC-02 real handler preserves three free attempts without registration', async () => {
+  const limited=memoryDurableEnv();
+  const handler=createHandler({fetcher:quotaProvider});
+  const statuses=[];
+  for(let i=0;i<4;i++) statuses.push((await handler(anonymousRequest('same-browser'),limited)).status);
+  assert.deepEqual(statuses,[200,200,200,429]);
+});
+for (const config of [
+  {BETA_ANONYMOUS_DAILY_BUDGET_MICRO_USD:undefined},
+  {BETA_ANONYMOUS_DAILY_BUDGET_MICRO_USD:'5000000'},
+  {BETA_ANONYMOUS_NETWORK_DAILY_LIMIT:'0'},
+  {BETA_ANONYMOUS_NETWORK_DAILY_LIMIT:'invalid'},
+]) test(`CC-02 invalid trial configuration fails closed ${JSON.stringify(config)}`, async()=>{
+  let calls=0;
+  const response=await createHandler({fetcher:async()=>{calls++;return quotaProvider();}})(anonymousRequest('invalid-config'),{...memoryDurableEnv(),...config});
+  assert.equal(response.status,503); assert.equal(calls,0);
+});
 
 const env = {
   GEMINI_API_KEY: 'test-secret',
-  GEMINI_MODEL: 'gemini-test',
+  GEMINI_MODEL: 'gemini-3.5-flash-lite',
   ALLOWED_ORIGIN: 'https://zeroleveldev.github.io',
   BETA_INVITE_CODE_HASHES: '["3ac96c6f1013fc0c2f5c5309d075f7785f1e3024609a64224bc6f406082af744"]',
   BETA_WEEKLY_REQUEST_LIMIT: '3',
-  BETA_DAILY_BUDGET_MICRO_USD: '500000',
-  GEMINI_MAX_REQUEST_COST_MICRO_USD: '10000',
+  BETA_ANONYMOUS_DAILY_BUDGET_MICRO_USD: '3000000',
+  BETA_ANONYMOUS_NETWORK_DAILY_LIMIT: '6',
+  BETA_DAILY_BUDGET_MICRO_USD: '5000000',
+  GEMINI_MAX_REQUEST_COST_MICRO_USD: '500000',
   ADMIN_API_KEY: 'test-admin-secret-at-least-32-bytes',
   BETA_USAGE_LIMITER: {
     idFromName: (name) => name,
@@ -23,6 +332,7 @@ const env = {
 
 function memoryDurableEnv() {
   const values = new Map();
+  let queue = Promise.resolve();
   const storage = {
     get: async (key) => values.get(key),
     put: async (keyOrValues, value) => {
@@ -30,7 +340,11 @@ function memoryDurableEnv() {
       else for (const [key, entry] of Object.entries(keyOrValues)) values.set(key, entry);
     },
     delete: async (key) => values.delete(key),
-    transaction: async (callback) => callback(storage),
+    transaction: (callback) => {
+      const result = queue.then(() => callback(storage));
+      queue = result.catch(() => {});
+      return result;
+    },
   };
   const limiter = new BetaUsageLimiter({ storage });
   return {
@@ -67,7 +381,7 @@ async function testSha256Hex(value) {
 
 function imageRequest({ consent = true, origin = env.ALLOWED_ORIGIN } = {}) {
   const form = new FormData();
-  form.append('image', new File(['fake-image'], 'room.jpg', { type: 'image/jpeg' }));
+  form.append('image', new File([new Uint8Array([255,216,255])], 'room.jpg', { type: 'image/jpeg' }));
   if (consent) form.append('betaConsent', 'true');
   return new Request('https://api.example/v1/scans', {
     method: 'POST', body: form, headers: {
@@ -80,7 +394,7 @@ function imageRequest({ consent = true, origin = env.ALLOWED_ORIGIN } = {}) {
 
 function labelRequest({ consent = true, origin = env.ALLOWED_ORIGIN } = {}) {
   const form = new FormData();
-  form.append('image', new File(['fake-label'], 'label.jpg', { type: 'image/jpeg' }));
+  form.append('image', new File([new Uint8Array([255,216,255])], 'label.jpg', { type: 'image/jpeg' }));
   form.append('itemName', 'Vintage film camera');
   form.append('category', 'Cameras');
   if (consent) form.append('betaConsent', 'true');
@@ -492,7 +806,7 @@ test('accepts only allow-listed privacy-minimal beta telemetry without consuming
           if (new URL(request.url).pathname === '/invites/check') {
             return Response.json({ allowed: false });
           }
-          quotaCalls += 1;
+          if (new URL(request.url).pathname !== '/telemetry/reserve') quotaCalls += 1;
           return Response.json({ allowed: true });
         },
       }),
@@ -630,8 +944,8 @@ test('uses durable quota and alerts once when the daily budget is reached', asyn
     inviteLimit: 3,
     inviteWindowMs: 7 * 24 * 60 * 60 * 1000,
     anonymous: false,
-    budgetMicroUsd: 500000,
-    requestCostMicroUsd: 10000,
+    budgetMicroUsd: 5000000,
+    requestCostMicroUsd: 500000,
   });
   assert.doesNotMatch(await response.text(), /budget|Gemini|500000/i);
 });
@@ -726,6 +1040,7 @@ test('durable limiter allows only three anonymous analyses even after seven days
       budgetMicroUsd: 100000,
       requestCostMicroUsd: 10000,
       anonymous: true,
+      trialBudgetMicroUsd: 60000, networkLimit: 6, networkHash: 'b'.repeat(64),
     }),
   }));
   const first = Date.UTC(2026, 8, 9);
@@ -780,6 +1095,18 @@ test('sends the image to Gemini and returns a validated scan contract', async ()
   assert.equal(providerRequest.contents[0].parts[1].inlineData.mimeType, 'image/jpeg');
   assert.equal(providerRequest.generationConfig.responseMimeType, 'application/json');
   assert.equal('maxItems' in providerRequest.generationConfig.responseJsonSchema.properties.items, false);
+});
+
+for (const serial of ['PRIVATE-123', 'A.B[42]']) test(`CC-10 redacts explicitly identified serial ${serial} without losing model identity`, async () => {
+  const identity = {exactName:`Canon AE-1 ${serial}`, manufacturer:`Canon ${serial}`, model:`AE-1 ${serial}`, searchQuery:`camera ${serial}`, marketplaceReason:`Compare ${serial}`, serialNumber:serial, serialDetected:true};
+  const response = await createHandler({fetcher:async()=>Response.json({candidates:[{content:{parts:[{text:JSON.stringify(identity)}]}}]})})(labelRequest(),env);
+  assert.equal(response.status,200);
+  const result = await response.json();
+  assert.equal(JSON.stringify(result).includes(serial),false);
+  assert.equal(result.exactName,'Canon AE-1');
+  assert.equal(result.model,'AE-1');
+  assert.equal(result.searchQuery,result.exactName,'minimize marketplace text to product identity');
+  assert.equal('serialNumber' in result,false);
 });
 
 test('uses a label photo to refine an item without returning its serial number', async () => {

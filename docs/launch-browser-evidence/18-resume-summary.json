@@ -1,0 +1,12 @@
+{
+  "port8765Closed": true,
+  "connectResult": 10061,
+  "newArtifacts": [
+    "16-resume-research.json",
+    "16-resume-research.png",
+    "17-link-registration-diagnostic.json"
+  ],
+  "artifactsExist": true,
+  "productionSourceChangedOnResume": false,
+  "fullTestsRerunOnResume": false
+}

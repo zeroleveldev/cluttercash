@@ -8,6 +8,6 @@
     "invite": "node scripts/generate-invite.mjs"
   },
   "devDependencies": {
-    "wrangler": "^4.129.1"
+    "wrangler": "4.131.1"
   }
 }

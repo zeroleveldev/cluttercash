@@ -1,0 +1,20 @@
+{
+  "artifactSha256": "149832225d78334b0711095ff2a83860009638424a4efc57a3aa89de4948300e",
+  "compiledWebLinkMarkerCount": 0,
+  "compiledDefaultDelegateErrorPresent": true,
+  "generatedRegistrants": [
+    {
+      "path": ".dart_tool\\flutter_build\\6da3b8ed7e7ca3e410986bd9911acbd0\\web_plugin_registrant.dart",
+      "registersUrlLauncher": false
+    },
+    {
+      "path": ".dart_tool\\flutter_build\\6ddc8aff10084bba79c3e415904f94e2\\web_plugin_registrant.dart",
+      "registersUrlLauncher": false
+    },
+    {
+      "path": ".dart_tool\\flutter_build\\d53f10ba82cdf31e289e8be8ce3ac024\\web_plugin_registrant.dart",
+      "registersUrlLauncher": false
+    }
+  ],
+  "dartpadRegistersUrlLauncher": true
+}

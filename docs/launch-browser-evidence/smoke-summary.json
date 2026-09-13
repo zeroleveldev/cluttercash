@@ -1,0 +1,20 @@
+{
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "privacyOpened": true,
+  "explicitDemo": true,
+  "correctedName": "Verified smoke camera",
+  "prices": [
+    100,
+    150,
+    200
+  ],
+  "savedAndRefreshedAndReopened": true,
+  "demoProvenancePersisted": true,
+  "deletedAndRefreshedEmpty": true,
+  "runtimeErrorsBeforeRefresh": [],
+  "apiBlocked": "*cluttercash-api*",
+  "researchAnchorInspection": "No anchors located; research query text persisted; URI/navigation NOT verified"
+}

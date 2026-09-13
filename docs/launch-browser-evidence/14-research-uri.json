@@ -1,0 +1,81 @@
+{
+  "transport": {
+    "requests": [
+      {
+        "url": "https://cluttercash-api.zeroleveldev.workers.dev/v1/scans",
+        "method": "POST",
+        "bytes": 654,
+        "consent": true,
+        "mime": true
+      },
+      {
+        "url": "https://cluttercash-api.zeroleveldev.workers.dev/v1/scans",
+        "method": "POST",
+        "bytes": 654,
+        "consent": true,
+        "mime": true
+      }
+    ],
+    "opens": []
+  },
+  "targets": {
+    "targetInfos": [
+      {
+        "targetId": "449EDC18A2D6E6AAAB5806FB586FAAA7",
+        "type": "browser_ui",
+        "title": "Omnibox Popup",
+        "url": "chrome://omnibox-popup.top-chrome/",
+        "attached": false,
+        "canAccessOpener": false,
+        "browserContextId": "B2932717EF413018693A70FCE54AAB01"
+      },
+      {
+        "targetId": "440A99AFF0C1E79CB4E0D1E06A8960DE",
+        "type": "browser_ui",
+        "title": "Omnibox Popup",
+        "url": "chrome://omnibox-popup.top-chrome/omnibox_popup_aim.html",
+        "attached": false,
+        "canAccessOpener": false,
+        "browserContextId": "B2932717EF413018693A70FCE54AAB01"
+      },
+      {
+        "targetId": "30F24033127536F55B9833C517B78D01",
+        "type": "page",
+        "title": "New Tab",
+        "url": "chrome://newtab/",
+        "attached": true,
+        "canAccessOpener": false,
+        "browserContextId": "B2932717EF413018693A70FCE54AAB01"
+      },
+      {
+        "targetId": "91B4D25AF8DB1223F164DB122828E603",
+        "type": "iframe",
+        "title": "chrome-untrusted://new-tab-page/one-google-bar?paramsencoded=",
+        "url": "chrome-untrusted://new-tab-page/one-google-bar?paramsencoded=",
+        "attached": true,
+        "parentId": "30F24033127536F55B9833C517B78D01",
+        "canAccessOpener": false,
+        "parentFrameId": "30F24033127536F55B9833C517B78D01",
+        "browserContextId": "B2932717EF413018693A70FCE54AAB01"
+      },
+      {
+        "targetId": "F6AB62426645334A2C4D8D8A45CA254E",
+        "type": "page",
+        "title": "about:blank",
+        "url": "about:blank",
+        "attached": true,
+        "canAccessOpener": false,
+        "browserContextId": "B2932717EF413018693A70FCE54AAB01"
+      },
+      {
+        "targetId": "292AB737B2A089FF50D600D4A7D69098",
+        "type": "page",
+        "title": "ClutterCash",
+        "url": "http://127.0.0.1:8765/cluttercash/",
+        "attached": true,
+        "canAccessOpener": false,
+        "browserContextId": "B2932717EF413018693A70FCE54AAB01"
+      }
+    ]
+  }
+}

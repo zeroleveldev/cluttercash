@@ -1,0 +1,22 @@
+{
+  "text": "Back\nYOUR PHOTO IS READY\nWe couldn\u2019t analyze this photo\nNothing was invented. Check the secure API connection, then try again. Your image stays on this screen only.\nFormatException: Scan response did not match the expected contract.\nEnter beta invite code\nSee a clearly labeled demo result\nChoose another photo\nDemo values do not describe your uploaded photo.",
+  "transport": {
+    "requests": [
+      {
+        "url": "https://cluttercash-api.zeroleveldev.workers.dev/v1/scans",
+        "method": "POST",
+        "bytes": 654,
+        "consent": true,
+        "mime": true
+      },
+      {
+        "url": "https://cluttercash-api.zeroleveldev.workers.dev/v1/scans",
+        "method": "POST",
+        "bytes": 654,
+        "consent": true,
+        "mime": true
+      }
+    ],
+    "opens": []
+  }
+}

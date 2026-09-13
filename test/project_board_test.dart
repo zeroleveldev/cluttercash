@@ -53,8 +53,15 @@ void main() {
     );
     expect(estimateDisclaimer, findsOneWidget);
 
+    await tester.ensureVisible(find.text('Sold'));
     await tester.tap(find.text('Sold'));
     await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.text('1 of 1 cleared'),
+      -200,
+      scrollable: find.byType(Scrollable).last,
+    );
 
     expect(find.text('1 of 1 cleared'), findsOneWidget);
     expect(find.textContaining('earned'), findsNothing);

@@ -1,0 +1,10 @@
+{
+  "serverPort8765Closed": true,
+  "socketCode": 10061,
+  "trustedNavigationsPassed": 4,
+  "expectedNavigations": 4,
+  "sha256": "5342b57dfc733de06fa7c380e656156226a3ec3af6359fd0440db4c32cb0399c",
+  "flutterTestsPassed": 77,
+  "analyzer": "No issues found",
+  "repeatedBuildSameHash": true
+}

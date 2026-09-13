@@ -8,10 +8,27 @@ const upload = multer({
   fileFilter: (_request, file, done) => done(null, /^image\/(jpeg|png|webp)$/.test(file.mimetype)),
 });
 
-export function createApp({ analyzer, allowedOrigin = process.env.ALLOWED_ORIGIN || true } = {}) {
+function isLocalUrl(value) {
+  try {
+    const url = new URL(value);
+    return ['http:', 'https:'].includes(url.protocol)
+      && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
+      && !url.username && !url.password;
+  } catch { return false; }
+}
+
+export function createApp({ analyzer } = {}) {
   const app = express();
   app.disable('x-powered-by');
-  app.use(cors({ origin: allowedOrigin }));
+  // Local development only; do not trust forwarded headers or expose via proxy.
+  app.use((request, response, next) => {
+    if (!isLocalUrl(`http://${request.headers.host}`)
+      || (request.headers.origin && !isLocalUrl(request.headers.origin))) {
+      return response.status(403).json({ error: 'Local development only.' });
+    }
+    next();
+  });
+  app.use(cors({ origin: true }));
   app.use((_request, response, next) => {
     response.setHeader('X-Content-Type-Options', 'nosniff');
     response.setHeader('Referrer-Policy', 'no-referrer');
@@ -26,6 +43,7 @@ export function createApp({ analyzer, allowedOrigin = process.env.ALLOWED_ORIGIN
   app.post('/v1/scans', upload.single('image'), async (request, response, next) => {
     try {
       if (!request.file) return response.status(400).json({ error: 'A JPEG, PNG, or WebP image is required.' });
+      if (imageMime(request.file.buffer) !== request.file.mimetype) return response.status(400).json({ error: 'Image bytes must match JPEG, PNG, or WebP format.' });
       if (!analyzer) return response.status(503).json({ error: 'Live analysis is not configured.' });
       const result = await analyzer.analyze({ bytes: request.file.buffer, mimeType: request.file.mimetype });
       response.json(validateScan(result));
@@ -36,23 +54,40 @@ export function createApp({ analyzer, allowedOrigin = process.env.ALLOWED_ORIGIN
 
   app.use((error, _request, response, _next) => {
     if (error?.code === 'LIMIT_FILE_SIZE') return response.status(413).json({ error: 'Image must be 8 MB or smaller.' });
-    console.error('scan_error', error instanceof Error ? error.message : 'unknown');
+    console.error('scan_error');
     return response.status(502).json({ error: 'The scan could not be completed. Try another photo.' });
   });
   return app;
+}
+
+// Header identification only, not a full decoder or safety guarantee.
+function imageMime(bytes) {
+  const starts = signature => bytes.length >= signature.length && signature.every((value, index) => bytes[index] === value);
+  if (starts([255, 216, 255])) return 'image/jpeg';
+  if (starts([137, 80, 78, 71, 13, 10, 26, 10])) return 'image/png';
+  if (bytes.length >= 12 && starts([82, 73, 70, 70])
+    && [87, 69, 66, 80].every((value, index) => bytes[index + 8] === value)) return 'image/webp';
+  return null;
 }
 
 function validateScan(value) {
   if (!value || typeof value.sceneSummary !== 'string' || !Array.isArray(value.items)) throw new Error('Invalid analyzer response');
   const routes = new Set(['sell', 'bundle', 'donate', 'recycle', 'keep']);
   const levels = new Set(['low', 'medium', 'high']);
+  const ids = new Set();
   const items = value.items.slice(0, 20).map((item, index) => {
     if (!item || typeof item.name !== 'string') throw new Error('Invalid analyzer item');
-    const low = finite(item.lowValue);
-    const typical = finite(item.typicalValue);
-    const high = finite(item.highValue);
+    const id = item.id ?? `item-${index + 1}`;
+    if (typeof id !== 'string' || !id.trim() || id.length > 128 || ids.has(id)) {
+      throw new Error('Invalid or duplicate item ID');
+    }
+    ids.add(id);
+    const low = price(item.lowValue);
+    const typical = price(item.typicalValue);
+    const high = price(item.highValue);
+    if (low > typical || typical > high) throw new Error('Invalid potential value range');
     return {
-      id: String(item.id || `item-${index + 1}`),
+      id,
       name: item.name.slice(0, 100),
       category: String(item.category || 'Other').slice(0, 40),
       lowValue: Math.min(low, typical, high),
@@ -68,8 +103,14 @@ function validateScan(value) {
       },
     };
   });
-  if (items.length === 0) throw new Error('Analyzer returned no items');
   return { sceneSummary: value.sceneSummary.slice(0, 160), items };
+}
+
+function price(value) {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1000000) {
+    throw new Error('Unsupported potential value');
+  }
+  return value;
 }
 
 function finite(value) {
