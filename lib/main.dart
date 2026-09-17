@@ -18,8 +18,24 @@ import 'services/free_use_token.dart';
 import 'services/project_store.dart';
 import 'services/scan_api.dart';
 import 'services/telemetry.dart';
+import 'services/subscriber.dart';
+import 'services/subscriber_bridge.dart';
+import 'subscriber_landing.dart';
+
+String? _subscriberLanding;
+final _subscriberState = SubscriberState(
+  SubscriberApi(baseUrl: _apiUrl),
+  browserProof: readSubscriberValue('proof'),
+  session: readSubscriberValue('session'),
+  paidIntent: readSubscriberValue('intent') != null,
+  savePaidIntent: (value) =>
+      writeSubscriberValue('intent', value ? 'required' : null),
+  saveProof: (value) => writeSubscriberValue('proof', value),
+  saveSession: (value) => writeSubscriberValue('session', value),
+);
 
 void main() {
+  _subscriberLanding = takeSubscriberLanding();
   WidgetsFlutterBinding.ensureInitialized();
   const telemetry = TelemetryClient(baseUrl: _apiUrl, inviteCode: _betaInvite);
   installTelemetryErrorHandlers(telemetry);
@@ -57,6 +73,11 @@ Future<ScanApi> _activeScanApi() async {
     baseUrl: _apiUrl,
     inviteCode: await _activeInviteCode(),
     deviceToken: await getOrCreateFreeUseToken(preferences),
+    subscriberReauthRequired:
+        testBillingEnabled && _subscriberState.reauthRequired,
+    subscriberSession: testBillingEnabled
+        ? _subscriberState.sessionToken
+        : null,
   );
 }
 
@@ -141,7 +162,25 @@ class ClutterCashApp extends StatelessWidget {
           ),
         ),
       ),
-      home: _PickerRecoveryHome(picker: picker),
+      home: _subscriberLanding == null
+          ? _PickerRecoveryHome(picker: picker)
+          : Builder(
+              builder: (context) => SubscriberLanding(
+                state: _subscriberState,
+                token: _subscriberLanding == "billing_return"
+                    ? null
+                    : _subscriberLanding,
+                billingReturn: _subscriberLanding == "billing_return",
+                onClose: () {
+                  _subscriberLanding = null;
+                  Navigator.of(context).pushReplacement(
+                    MaterialPageRoute<void>(
+                      builder: (_) => _PickerRecoveryHome(picker: picker),
+                    ),
+                  );
+                },
+              ),
+            ),
     ),
   );
 }
@@ -243,6 +282,19 @@ class WelcomeScreen extends StatelessWidget {
                 const SizedBox(height: 26),
                 const _HeroReveal(),
                 const SizedBox(height: 22),
+                if (testBillingEnabled)
+                  TextButton(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (context) => SubscriberLanding(
+                          state: _subscriberState,
+                          onClose: () => Navigator.pop(context),
+                        ),
+                      ),
+                    ),
+                    child: const Text('Subscription / restore (test)'),
+                  ),
                 FilledButton.icon(
                   onPressed: () => Navigator.push(
                     context,

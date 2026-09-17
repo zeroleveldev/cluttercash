@@ -16,20 +16,36 @@ class ScanApi {
     required this.baseUrl,
     this.inviteCode = '',
     this.deviceToken = '',
+    this.subscriberSession,
+    this.subscriberReauthRequired = false,
     this._client,
   });
 
   final String baseUrl;
   final String inviteCode;
   final String deviceToken;
+  final String? subscriberSession;
+  final bool subscriberReauthRequired;
   final http.Client? _client;
 
   bool get isConfigured =>
       baseUrl.trim().isNotEmpty &&
-      (inviteCode.trim().isNotEmpty || deviceToken.trim().length >= 32);
+      (subscriberSession != null ||
+          inviteCode.trim().isNotEmpty ||
+          deviceToken.trim().length >= 32);
+
+  void _requirePaidAccess() {
+    if (subscriberReauthRequired) {
+      throw const ScanApiException(
+        'Paid access needs verification. Restore from Subscription / restore, or Sign out there explicitly to use free access. No free scan was attempted.',
+      );
+    }
+  }
 
   void _addAccessHeader(Map<String, String> headers) {
-    if (inviteCode.trim().isNotEmpty) {
+    if (subscriberSession != null) {
+      headers['Authorization'] = 'Bearer $subscriberSession';
+    } else if (inviteCode.trim().isNotEmpty) {
       headers['X-ClutterCash-Invite'] = inviteCode.trim();
     } else {
       headers['X-ClutterCash-Device'] = deviceToken.trim();
@@ -40,6 +56,7 @@ class ScanApi {
     Uint8List bytes, {
     String projectId = 'quick-scan',
   }) async {
+    _requirePaidAccess();
     if (!isConfigured) {
       throw const ScanApiException('Live analysis is not configured.');
     }
@@ -79,6 +96,7 @@ class ScanApi {
     Uint8List bytes,
     ClutterItem item,
   ) async {
+    _requirePaidAccess();
     if (!isConfigured) {
       throw const ScanApiException('Live analysis is not configured.');
     }
@@ -129,6 +147,12 @@ class ScanApi {
     var expired = false;
     final operation = () async {
       final response = await client.send(request);
+      if (subscriberSession != null && response.statusCode == 401) {
+        await response.stream.listen((_) {}).cancel();
+        throw const ScanApiException(
+          'Paid session expired or invalid. Restore verification from Subscription / restore. Sign out there explicitly to return to free access. No free scan was attempted.',
+        );
+      }
       if (expired) {
         await response.stream.listen((_) {}).cancel();
         throw const ScanApiException('Analysis timed out.');

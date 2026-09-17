@@ -15,24 +15,25 @@ ClutterCash live analysis is fail-closed. Each browser/device receives three no-
 - The first rejected reservation at the daily ceiling emits `daily_budget_reached`. Gemini failures emit only a route name and HTTP status. Provider/budget alerts never include photos, invite codes/hashes, prompts, provider response bodies, or API keys; access-request alerts include only the contact fields the requester explicitly submitted.
 - Missing/invalid access, bindings, limits, or secrets fail closed before Gemini.
 
-The checked-in defaults are 3 live analyses per invite in a rolling seven-day window, a **5,000,000 micro-USD ($5.00)** daily reservation ceiling, and **500,000 micro-USD ($0.50)** per request. This raises the proposed daily reservation amount from $0.50 to $5.00 while reducing total default admission capacity from 50 to 10 attempts/day. These are LOCAL proposed settings, not deployed or owner billing-account settings. Operator approval of the $5/day ceiling is required before rollout; keeping the former $0.50 ceiling would admit only one attempt and cannot support the promised three-use trial.
+The checked-in local settings preserve the prior **500,000 micro-USD ($0.50)** daily reservation ceiling and use a **131,072 micro-USD ($0.131072)** per-request reservation. At that deliberately pessimistic reservation, the current daily ceiling admits at most 3 attempted Gemini calls (`3 * 131072 = 393,216`; attempt 4 would exceed the ceiling). These settings are not deployed or provider-account billing controls. Choose and explicitly approve any higher daily cap plus monthly/account controls before rollout. No monthly limiter is implemented here.
 
 ### Conservative token-cost derivation (CC-01)
 
-Exact model remains `gemini-3.5-flash-lite`. Official sources rechecked for this slice:
-- [Model limits](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite): 1,048,576 input tokens and 65,536 output tokens.
-- [Standard pricing](https://ai.google.dev/gemini-api/docs/pricing#gemini-3.5-flash-lite): $0.30/M input, $2.50/M output **including thinking**. No tools, grounding, caching, priority service or extra candidates are requested.
-- [Generation API](https://ai.google.dev/api/generate-content): `maxOutputTokens` limits a response candidate. Worker explicitly sends 8192 and `candidateCount: 1` on both routes. Deprecated temperature parameter removed per [release notes](https://ai.google.dev/gemini-api/docs/changelog).
+Exact model is `gemini-2.5-flash-lite`. Official sources rechecked for this switch:
+- [Model limits](https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash-lite): 1,048,576 input tokens and 65,536 output tokens; image input and structured output are supported.
+- [Standard pricing](https://ai.google.dev/gemini-api/docs/pricing#gemini-2.5-flash-lite): $0.10/M text/image/video input and $0.40/M output **including thinking**. No tools, grounding, caching, priority service or extra candidates are requested.
+- [Thinking](https://ai.google.dev/gemini-api/docs/thinking): 2.5 Flash-Lite defaults to thinking off. The generateContent payload also explicitly sends `thinkingConfig: { thinkingBudget: 0 }`, `maxOutputTokens: 4096`, and `candidateCount: 1` on both routes. Payload shape is regression-tested locally; no paid/live provider call was made in this slice.
+- [Image token calculation](https://ai.google.dev/gemini-api/docs/image-understanding#token-calculation): images with both dimensions at most 384 pixels use 258 tokens; larger images are tiled into 768x768 tiles at 258 tokens each. Google labels the tile-count formula rough, so it is not used as a hard billing bound.
 
-The reservation intentionally does NOT depend on estimating image tiles, bytes-to-tokens, or assuming the 8192 candidate cap includes all separately reported thinking. It reserves the **entire model input window**, plus **65,536 output tokens for thinking and another 8192 visible output tokens**. Computed in micro-USD: `ceil(1048576 * 0.30 + (65536 + 8192) * 2.50) = 498893`; default rounds up to 500000. This conservative fallback relies on the provider honoring its published model limits and Standard pricing, not on a measured local token count. A larger reservation is permitted; a lower/missing/noninteger value or different/missing model fails closed before parsing/reservation/provider work. Rates are code-reviewed constants, not operator-overridable underestimates.
+The reservation intentionally does NOT estimate image tiles or bytes-to-tokens, and does not treat the thinking control as a billing guarantee. It reserves the **entire 1,048,576-token model input window**, which conservatively contains all text, schema and image tokens accepted by the model, plus the model's entire published 65,536-token output window even though thinking is disabled and visible output is requested at 4,096 tokens. Computed in micro-USD: `ceil(1048576 * 0.10 + 65536 * 0.40) = 131072`. This fallback relies only on the provider honoring its absolute published model limits and Standard pricing, not on a measured local token count. A larger reservation is permitted; a lower/missing/noninteger value or different/missing model fails closed before parsing/reservation/provider work. Rates are code-reviewed constants, not operator-overridable underestimates.
 
-Multipart bodies are stream-counted before parsing, capped at 8 MiB + 64 KiB including all overhead (Content-Length alone is not trusted). One image remains capped at 8 MiB; existing closed-field and 100/40-character identity-context limits bound user text. Fixed prompts/schema add no unbounded user fields. No image dimension/signature decoder is added: the full input-window fallback deliberately avoids relying on dimensions for cost, and malformed image rejection remains CC-19 work. Oversized model input may fail upstream and still retains a reservation; no automatic retry or refund is implemented. The 8192 output cap may truncate dense scenes: existing honest 502 handling applies, never a demo substitution.
+Multipart bodies are stream-counted before parsing, capped at 8 MiB + 64 KiB including all overhead (Content-Length alone is not trusted). One image remains capped at 8 MiB; existing magic-signature, closed-field and 100/40-character identity-context checks bound accepted input shape. Fixed prompts/schema add no unbounded user fields. No image dimension decoder is added: the full input-window fallback avoids turning Google's approximate tile formula into a false cost guarantee. Oversized model input may fail upstream and still retains a reservation; no automatic retry or refund is implemented. The 4,096 output cap may truncate dense scenes: existing honest 502 handling applies, never a demo substitution.
 
 Review pricing/model semantics and these deliberately pessimistic capacity tradeoffs before deployment or beta expansion. No live provider quality, token usage or billing enforcement was tested.
 
 ## Anonymous analysis protection and retention
 
-`BETA_ANONYMOUS_DAILY_BUDGET_MICRO_USD=3000000` limits anonymous analysis reservations inside the global 5000000 ceiling; with the default 500000 reservation this permits six daily trial attempts (two complete new-browser trials) and protects four more attempts from anonymous callers. Approved callers/owner can still consume global capacity; no guarantee of availability is made. Three free attempts per browser remain registration-free, subject to these shared safety limits.
+`BETA_ANONYMOUS_DAILY_BUDGET_MICRO_USD=393216` limits anonymous analysis reservations inside the global 500000 ceiling; with the 131072 reservation this admits at most 3 anonymous attempts across networks per UTC day. The separate six-attempt network limit and three-use browser limit still apply, but the smaller cost pool wins first. Approved callers/owner share the same global ceiling; no guarantee of availability is made.
 
 `BETA_ANONYMOUS_NETWORK_DAILY_LIMIT=6` caps accepted anonymous attempts per exact connection address per UTC day across rotated tokens. Only Cloudflare's trusted `CF-Connecting-IP` is used, never client forwarding headers. Missing header or malformed anonymous limits fail closed. Keep the deployment behind Cloudflare's edge; review same-zone Worker subrequests, transforms and Pseudo IPv4 settings before rollout. This is not a /64 IPv6 or person-level limit: multiple addresses can exhaust only the trial pool. Shared NAT users share the network allowance.
 
@@ -92,10 +93,10 @@ The private `npm run invite -- 'tester@example.com'` owner command remains avail
 The public client needs only the Worker URL. New users receive three analyses immediately through their random local token. A manually approved request activates continued limited testing in that same browser without a code:
 
 ```bash
-flutter build web --release \
-  --base-href /cluttercash/ \
-  --dart-define=CLUTTERCASH_API_URL=https://cluttercash-api.zeroleveldev.workers.dev
+bash tool/build_web_release.sh
 ```
+
+This command builds for the `https://cluttercash.app/` root, enables TEST billing UI, targets the public Worker URL, preserves the GitHub Pages `CNAME`, and checks the marketplace-link plugin artifact. It does not deploy anything.
 
 The browser keeps its random device token and private request-status token in local storage. The Worker receives them over HTTPS and stores only hashes. Never place browser tokens, approval URLs, Gemini, Cloudflare, admin, webhook, or other privileged values in Git, Flutter assets, public Discord channels, or screenshots.
 

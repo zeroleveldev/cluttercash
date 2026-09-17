@@ -114,27 +114,28 @@ for (const route of ['scans', 'items/identify']) test(`CC-01 ${route} bounds act
   let payload;
   const response = await createHandler({fetcher:async (url, init)=>{
     payload=JSON.parse(init.body);
-    assert.match(url, /\/gemini-3\.5-flash-lite:generateContent$/);
+    assert.match(url, /\/gemini-2\.5-flash-lite:generateContent$/);
     return route === 'scans' ? quotaProvider() : Response.json({candidates:[{content:{parts:[{text:JSON.stringify({exactName:'Verified camera',model:'Camera',confidence:'high'})}]}}]});
-  }})(route==='scans'?imageRequest():labelRequest(), {...env,GEMINI_MAX_REQUEST_COST_MICRO_USD:'500000'});
+  }})(route==='scans'?imageRequest():labelRequest(), env);
   assert.equal(response.status,200);
-  assert.equal(payload.generationConfig.maxOutputTokens,8192);
+  assert.equal(payload.generationConfig.maxOutputTokens,4096);
+  assert.deepEqual(payload.generationConfig.thinkingConfig,{thinkingBudget:0});
   assert.equal(payload.generationConfig.candidateCount,1);
   assert.equal(payload.generationConfig.temperature,undefined);
   assert.equal(payload.tools,undefined);
 });
-for(const config of [{GEMINI_MODEL:undefined},{GEMINI_MAX_REQUEST_COST_MICRO_USD:'invalid'},{GEMINI_MAX_REQUEST_COST_MICRO_USD:'498893.5'},{GEMINI_MAX_REQUEST_COST_MICRO_USD:'9007199254740992'},{GEMINI_MODEL:'other-model'},{GEMINI_MAX_REQUEST_COST_MICRO_USD:'10000'},{GEMINI_MAX_REQUEST_COST_MICRO_USD:undefined},{GEMINI_MAX_REQUEST_COST_MICRO_USD:'498892'}]) test(`CC-01 unsafe cost configuration ${JSON.stringify(config)}`,async()=>{
+for(const config of [{GEMINI_MODEL:undefined},{GEMINI_MAX_REQUEST_COST_MICRO_USD:'invalid'},{GEMINI_MAX_REQUEST_COST_MICRO_USD:'131072.5'},{GEMINI_MAX_REQUEST_COST_MICRO_USD:'9007199254740992'},{GEMINI_MODEL:'other-model'},{GEMINI_MAX_REQUEST_COST_MICRO_USD:'10000'},{GEMINI_MAX_REQUEST_COST_MICRO_USD:undefined},{GEMINI_MAX_REQUEST_COST_MICRO_USD:'131071'}]) test(`CC-01 unsafe cost configuration ${JSON.stringify(config)}`,async()=>{
   let calls=0; let quotas=0;
   const response=await createHandler({fetcher:async()=>{calls++;return quotaProvider();}})(imageRequest(),{...env,...config,
     BETA_USAGE_LIMITER:{idFromName:n=>n,get:()=>({fetch:async()=>{quotas++;return Response.json({allowed:true});}})},
   });
   assert.equal(response.status,503);assert.equal(calls,0);assert.equal(quotas,0);
 });
-test('CC-01 derived floor is accepted and forwarded exactly to reservation',async()=>{
+test('CC-01 2.5 Flash-Lite full-window bound is accepted and forwarded exactly to reservation',async()=>{
   let reserved;
-  const exact={...env,GEMINI_MAX_REQUEST_COST_MICRO_USD:'498893',BETA_USAGE_LIMITER:{idFromName:n=>n,get:()=>({fetch:async request=>{reserved=await request.json();return Response.json({allowed:true});}})}};
+  const exact={...env,GEMINI_MAX_REQUEST_COST_MICRO_USD:'131072',BETA_USAGE_LIMITER:{idFromName:n=>n,get:()=>({fetch:async request=>{reserved=await request.json();return Response.json({allowed:true});}})}};
   assert.equal((await createHandler({fetcher:quotaProvider})(imageRequest(),exact)).status,200);
-  assert.equal(reserved.requestCostMicroUsd,Math.ceil(1048576*.3+(65536+8192)*2.5));
+  assert.equal(reserved.requestCostMicroUsd,Math.ceil(1048576*.1+65536*.4));
 });
 
 for (const declared of [undefined, '1', String(10 * 1024 * 1024)]) test(`CC-01 bounds streamed multipart before reservation declared=${declared}`, async () => {
@@ -253,7 +254,7 @@ function anonymousRequest(token, ip = '203.0.113.10') {
 const quotaProvider = async () => Response.json({candidates:[{content:{parts:[{text:JSON.stringify({sceneSummary:'Shelf',items:[{name:'Lamp',lowValue:1,typicalValue:2,highValue:3}]})}]}}]});
 
 test('CC-02 parallel rotated trials cannot consume invited capacity; owner stays globally capped', async () => {
-  const limited = {...memoryDurableEnv(), BETA_ANONYMOUS_DAILY_BUDGET_MICRO_USD:'3000000', BETA_ANONYMOUS_NETWORK_DAILY_LIMIT:'6', BETA_DAILY_BUDGET_MICRO_USD:'5000000', BETA_OWNER_INVITE_CODE_HASHES:env.BETA_INVITE_CODE_HASHES};
+  const limited = {...memoryDurableEnv(), BETA_ANONYMOUS_DAILY_BUDGET_MICRO_USD:String(6 * 131072), BETA_ANONYMOUS_NETWORK_DAILY_LIMIT:'6', BETA_DAILY_BUDGET_MICRO_USD:String(10 * 131072), BETA_OWNER_INVITE_CODE_HASHES:env.BETA_INVITE_CODE_HASHES};
   let calls = 0;
   const handler = createHandler({fetcher:async (...args) => {calls++; return quotaProvider(...args);}});
   const results = await Promise.all(Array.from({length:30}, (_,i) => handler(anonymousRequest(`token-${i}`, `203.0.113.${i+1}`),limited)));
@@ -311,14 +312,14 @@ for (const config of [
 
 const env = {
   GEMINI_API_KEY: 'test-secret',
-  GEMINI_MODEL: 'gemini-3.5-flash-lite',
+  GEMINI_MODEL: 'gemini-2.5-flash-lite',
   ALLOWED_ORIGIN: 'https://zeroleveldev.github.io',
   BETA_INVITE_CODE_HASHES: '["3ac96c6f1013fc0c2f5c5309d075f7785f1e3024609a64224bc6f406082af744"]',
   BETA_WEEKLY_REQUEST_LIMIT: '3',
   BETA_ANONYMOUS_DAILY_BUDGET_MICRO_USD: '3000000',
   BETA_ANONYMOUS_NETWORK_DAILY_LIMIT: '6',
   BETA_DAILY_BUDGET_MICRO_USD: '5000000',
-  GEMINI_MAX_REQUEST_COST_MICRO_USD: '500000',
+  GEMINI_MAX_REQUEST_COST_MICRO_USD: '131072',
   ADMIN_API_KEY: 'test-admin-secret-at-least-32-bytes',
   BETA_USAGE_LIMITER: {
     idFromName: (name) => name,
@@ -945,9 +946,9 @@ test('uses durable quota and alerts once when the daily budget is reached', asyn
     inviteWindowMs: 7 * 24 * 60 * 60 * 1000,
     anonymous: false,
     budgetMicroUsd: 5000000,
-    requestCostMicroUsd: 500000,
+    requestCostMicroUsd: 131072,
   });
-  assert.doesNotMatch(await response.text(), /budget|Gemini|500000/i);
+  assert.doesNotMatch(await response.text(), /budget|Gemini|131072/i);
 });
 
 test('fails closed when the durable quota binding is unavailable', async () => {

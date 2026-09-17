@@ -1,0 +1,48 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {build} from 'esbuild';
+import {Miniflare,convertV4MiniflareOptions} from 'miniflare';
+import {mkdtemp,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join,resolve} from 'node:path';
+test('real checkout DO serializes attempts, binds once and persists across restart',async()=>{
+ const bundle=await build({stdin:{contents:`import {BetaUsageLimiter} from './src/worker.js'; export {BetaUsageLimiter}; export default {fetch(r,e){return e.BETA_USAGE_LIMITER.get(e.BETA_USAGE_LIMITER.idFromName('global')).fetch(r);}}`,resolveDir:resolve('.')},bundle:true,write:false,format:'esm',platform:'browser'});
+ const directory=await mkdtemp(join(tmpdir(),'cluttercash-checkout-'));const options={modules:true,script:bundle.outputFiles[0].text,compatibilityDate:'2026-09-01',durableObjects:{BETA_USAGE_LIMITER:{className:'BetaUsageLimiter',useSQLite:true}},bindings:{STRIPE_BILLING_MODE:'test',STRIPE_PRICE_ID:'price_fixture'}};
+ const create=()=>new Miniflare({...convertV4MiniflareOptions(options),resourcePersistencePath:directory});let mf=create();const principal='a'.repeat(64),timestamp=Date.now();
+ const call=(path,body)=>mf.dispatchFetch('http://localhost'+path,{method:'POST',body:JSON.stringify({principal,timestamp,...body})});
+ try{
+ const results=await Promise.all(Array.from({length:12},(_,i)=>call('/checkout/begin',{attempt:i.toString(16).padStart(64,'0')}).then(r=>r.json())));assert.equal(new Set(results.map(r=>r.attempt)).size,1);const attempt=results[0].attempt;
+ assert.equal((await call('/checkout/customer',{attempt,customerId:'cus_fixture'})).status,200);
+ assert.equal((await call('/checkout/save',{attempt,sessionId:'cs_test_fixture'})).status,200);
+ const replacements=await Promise.all(Array.from({length:12},(_,i)=>call('/checkout/replace-expired',{attempt,sessionId:'cs_test_fixture',customerId:'cus_fixture',nextAttempt:(i+32).toString(16).padStart(64,'0')})));
+ assert.equal(replacements.filter(r=>r.status===200).length,1);
+ const replacement=await replacements.find(r=>r.status===200).json();
+ assert.equal((await call('/checkout/save',{attempt,sessionId:'cs_test_stale'})).status,503);
+ assert.equal((await call('/checkout/bind',{attempt,sessionId:'cs_test_fixture',customerId:'cus_fixture',subscriptionId:'sub_stale'})).status,503);
+ await mf.dispose();mf=create();
+ const resumed=await (await call('/checkout/begin',{attempt:'f'.repeat(64)})).json();assert.equal(resumed.attempt,replacement.attempt);assert.equal(resumed.customerId,'cus_fixture');assert.equal(resumed.sessionId,undefined);
+ assert.equal((await call('/checkout/save',{attempt:replacement.attempt,sessionId:'cs_test_new'})).status,200);
+ const binding={attempt:replacement.attempt,sessionId:'cs_test_new',customerId:'cus_fixture',subscriptionId:'sub_fixture'};
+ assert.equal((await call('/checkout/bind',binding)).status,200);
+ await mf.dispose();mf=create();assert.equal((await (await call('/checkout/status',{})).json()).subscribed,true);
+ assert.equal((await call('/checkout/bind',binding)).status,200);
+ assert.equal((await call('/checkout/bind',{...binding,subscriptionId:'sub_other'})).status,503);
+ assert.equal((await call('/billing/check',{customerId:'cus_fixture',subscriptionId:'sub_fixture',principal:undefined,timestamp:undefined})).status,200);
+ const ledger=(path,body)=>call('/billing/'+path,{...body,principal:undefined,timestamp:undefined});
+ const grant={customerId:'cus_fixture',subscriptionId:'sub_fixture',eventId:'evt_first',invoiceId:'in_first',priceId:'price_fixture',livemode:false,periodStart:timestamp-1000,periodEnd:timestamp+86400000};
+ assert.equal((await (await ledger('grant',grant)).json()).granted,true);
+ const rotations=await Promise.all(Array.from({length:12},(_,i)=>call('/checkout/replace-canceled',{...binding,nextAttempt:(i+64).toString(16).padStart(64,'0')})));
+ assert.equal(rotations.filter(r=>r.status===200).length,1);const repurchase=await rotations.find(r=>r.status===200).json();
+ assert.equal((await call('/checkout/bind',binding)).status,503);
+ await mf.dispose();mf=create();assert.equal((await (await call('/checkout/status',{})).json()).entitled,false);
+ assert.equal((await call('/checkout/save',{attempt:repurchase.attempt,sessionId:'cs_test_resub'})).status,200);
+ const nextBinding={attempt:repurchase.attempt,sessionId:'cs_test_resub',customerId:'cus_fixture',subscriptionId:'sub_new'};
+ assert.equal((await call('/checkout/bind',nextBinding)).status,200);
+ const nextGrant={...grant,subscriptionId:'sub_new',eventId:'evt_new',invoiceId:'in_new',periodStart:timestamp};
+ assert.equal((await (await ledger('grant',nextGrant)).json()).granted,true);
+ const oldEvents=await Promise.all(Array.from({length:12},(_,i)=>ledger(i%2?'block':'grant',i%2?{customerId:'cus_fixture',subscriptionId:'sub_fixture'}:{...grant,eventId:'evt_old'+i,invoiceId:'in_old'+i})));
+ assert.ok(oldEvents.every(r=>r.status===200));
+ await mf.dispose();mf=create();const status=await (await call('/checkout/status',{})).json();assert.equal(status.entitled,true);assert.equal(status.remaining,10);assert.equal(status.blocked,false);
+ assert.equal((await (await ledger('grant',nextGrant)).json()).granted,false);
+ }finally{await mf.dispose();await rm(directory,{recursive:true,force:true});}
+});

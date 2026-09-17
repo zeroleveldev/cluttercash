@@ -1,13 +1,19 @@
+import { handleCheckout, checkoutCommand } from './stripe-checkout.js';
+import { paidLedgerCommand, paidCreditForReservation } from './paid-ledger.js';
+import { handleStripeWebhook, createStripeAdapter } from './stripe-billing.js';
+import { handleSubscriberIdentity, subscriberIdentityCommand } from './subscriber-identity.js';
+
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const MAX_UPLOAD_BYTES = MAX_IMAGE_BYTES + 64 * 1024;
-const SUPPORTED_GEMINI_MODEL = 'gemini-3.5-flash-lite';
-const MAX_OUTPUT_TOKENS = 8192;
-// Standard pricing: $0.30/M input, $2.50/M output (including thinking).
-// Reserve the ENTIRE input window, plus the entire model output window for
-// thinking AND the requested visible output. Do not assume thinking is free
-// or that maxOutputTokens alone bounds separately reported thinking tokens.
+const SUPPORTED_GEMINI_MODEL = 'gemini-2.5-flash-lite';
+const MAX_OUTPUT_TOKENS = 4096;
+// Standard pricing: $0.10/M input, $0.40/M output (including thinking).
+// Thinking is explicitly disabled and visible output is capped at 4096 tokens.
+// Still reserve the ENTIRE published input and output windows: this avoids
+// relying on approximate image tiling or treating a thinking control as a
+// stronger billing guarantee than the provider's absolute model limits.
 // Sources and operator limitations: docs/WORKER_BETA_OPERATIONS.md.
-const MIN_REQUEST_COST_MICRO_USD = Math.ceil(1048576 * 0.30 + (65536 + MAX_OUTPUT_TOKENS) * 2.50);
+const MIN_REQUEST_COST_MICRO_USD = Math.ceil(1048576 * 0.10 + 65536 * 0.40);
 const INVITE_HEADER = 'X-ClutterCash-Invite';
 const DEVICE_HEADER = 'X-ClutterCash-Device';
 const REQUEST_HEADER = 'X-ClutterCash-Request';
@@ -86,6 +92,8 @@ const identitySchema = {
 };
 
 export function createHandler({
+  subscriberEmailSender,
+  stripeAdapterFactory = createStripeAdapter,
   fetcher = fetch,
   providerTimeoutMs = 45000,
   now = () => Date.now(),
@@ -98,6 +106,13 @@ export function createHandler({
 } = {}) {
   return async function handle(request, env = {}) {
     const url = new URL(request.url);
+    if (url.pathname.startsWith('/v1/subscriber/')) {
+      return handleSubscriberIdentity(request, env, {now, emailSender: subscriberEmailSender});
+    }
+    if (url.pathname === '/v1/billing/webhook') {
+      return handleStripeWebhook(request, env, {now, adapterFactory: stripeAdapterFactory});
+    }
+    if (url.pathname.startsWith('/v1/billing/')) return handleCheckout(request, env, {now, adapterFactory: stripeAdapterFactory});
     const origin = request.headers.get('Origin');
     const isSameOriginApproval = /^\/v1\/access-requests\/[A-Za-z0-9_-]{1,100}\/approve$/.test(url.pathname)
       && origin === url.origin;
@@ -245,11 +260,30 @@ export function createHandler({
     if (!isScan && !isIdentity && !isTelemetry) {
       return json({ error: 'Not found.' }, 404, cors);
     }
-    if (!betaAccessConfigured(env)) {
-      return json({ error: 'Free beta access is not configured.' }, 503, cors);
+    let inviteHash;
+    // An explicitly supplied subscriber bearer wins over every legacy identity.
+    // Invalid/expired credentials never silently spend anonymous or owner quota.
+    if ((isScan || isIdentity) && request.headers.has('Authorization')) {
+      const token = request.headers.get('Authorization')?.match(/^Bearer ([a-f0-9]{64})$/)?.[1];
+      if (!token) return json({ error: 'Sign-in invalid or expired.' }, 401, cors);
+      if (env.STRIPE_BILLING_MODE !== 'test') return json({ error: 'Subscriber sign-in unavailable.' }, 503, cors);
+      try {
+        const stub = durableStub(env);
+        if (!stub) throw Error('Unavailable');
+        const response = await stub.fetch(new Request('https://usage.internal/subscriber/session', {
+          method: 'POST', body: JSON.stringify({ sessionHash: await sha256Hex(token), timestamp: now() }),
+        }));
+        if (!response.ok) throw Error('Unavailable');
+        const auth = await response.json();
+        if (!auth.valid) return json({ error: 'Sign-in invalid or expired.' }, 401, cors);
+        if (!/^[a-f0-9]{64}$/.test(auth.principal || '')) throw Error('Unavailable');
+        inviteHash = 'paid:' + auth.principal;
+      } catch { return json({ error: 'Subscriber sign-in unavailable.' }, 503, cors); }
+    } else {
+      if (!betaAccessConfigured(env)) return json({ error: 'Free beta access is not configured.' }, 503, cors);
+      inviteHash = await authorizedInviteHash(request, env);
+      if (!inviteHash) return json({ error: 'Free-use access could not be verified.' }, 401, cors);
     }
-    const inviteHash = await authorizedInviteHash(request, env);
-    if (!inviteHash) return json({ error: 'Free-use access could not be verified.' }, 401, cors);
 
     if (isTelemetry) {
       const event = await parseTelemetry(request);
@@ -374,6 +408,7 @@ export function createHandler({
             ] }],
             generationConfig: {
               maxOutputTokens: MAX_OUTPUT_TOKENS,
+              thinkingConfig: { thinkingBudget: 0 },
               candidateCount: 1,
               responseMimeType: 'application/json',
               responseJsonSchema: taskSchema,
@@ -699,8 +734,9 @@ async function sha256Hex(value) {
 }
 
 export class BetaUsageLimiter {
-  constructor(state) {
+  constructor(state, env = {}) {
     this.storage = state.storage;
+    this.env = env;
   }
 
   async scheduleCleanup(timestamp) {
@@ -713,6 +749,8 @@ export class BetaUsageLimiter {
     if (typeof this.storage.list !== 'function') return;
     const timestamp = Date.now();
     const records = await this.storage.list({ prefix: 'pending-access:' });
+    const subscriberRecords = await this.storage.list({ prefix: 'subscriber:' });
+    for (const [key, value] of subscriberRecords) records.set(key, value);
     let nextExpiry = null;
     for (const [key, record] of records) {
       const expiresAt = record?.status === 'approved' ? record.statusExpiresAt : record?.expiresAt;
@@ -735,6 +773,21 @@ export class BetaUsageLimiter {
       input = await request.json();
     } catch {
       return json({ error: 'Invalid request.' }, 400);
+    }
+
+    // Internal only: the webhook constructs commands from retrieved resources.
+    if (pathname.startsWith('/subscriber/')) {
+      if (this.env.STRIPE_BILLING_MODE !== 'test') return json({error: 'Unavailable.'}, 503);
+      await this.scheduleCleanup(input.timestamp + 600000);
+      return json(await subscriberIdentityCommand(this.storage, pathname, input));
+    }
+    if (pathname.startsWith('/checkout/')) {
+      try { return json(await checkoutCommand(this.storage, this.env, pathname, input)); }
+      catch { return json({error:'Billing unavailable.'}, 503); }
+    }
+    if (['/billing/grant', '/billing/block', '/billing/check'].includes(pathname)) {
+      const { status, ...result } = await paidLedgerCommand(this.storage, this.env, pathname, input);
+      return json(result, status);
     }
 
     if (pathname === '/telemetry/reserve') {
@@ -924,7 +977,8 @@ export class BetaUsageLimiter {
     const inviteHash = typeof input?.inviteHash === 'string' ? input.inviteHash.trim().slice(0, 128) : '';
     const inviteLimit = positiveInteger(input?.inviteLimit);
     const inviteWindowMs = positiveInteger(input?.inviteWindowMs);
-    const anonymous = input?.anonymous === true;
+    const paid = inviteHash.startsWith('paid:');
+    const anonymous = input?.anonymous === true && !paid;
     const unlimited = input?.unlimited === true && !anonymous;
     const trialBudgetMicroUsd = positiveInteger(input?.trialBudgetMicroUsd);
     const networkLimit = positiveInteger(input?.networkLimit);
@@ -941,6 +995,8 @@ export class BetaUsageLimiter {
     }
 
     const result = await this.storage.transaction(async (transaction) => {
+      const credit = paid ? await paidCreditForReservation(transaction, this.env, inviteHash.slice(5), timestamp) : null;
+      if (paid && !credit) return { allowed: false, reason: 'paid_unavailable', shouldAlert: false };
       const trialKey = `${day}:trial-budget`;
       const networkKey = `${day}:analysis-network:${networkHash}`;
       const trialUsed = anonymous ? Number(await transaction.get(trialKey)) || 0 : 0;
@@ -949,7 +1005,7 @@ export class BetaUsageLimiter {
       const anonymousKey = `anonymous:${inviteHash}`;
       const budgetKey = `${day}:budget`;
       const alertKey = `${day}:budget-alerted`;
-      const recent = anonymous || unlimited
+      const recent = paid || anonymous || unlimited
         ? []
         : (await transaction.get(inviteKey) || [])
             .filter((usedAt) => Number.isSafeInteger(usedAt) && usedAt > timestamp - inviteWindowMs);
@@ -958,7 +1014,7 @@ export class BetaUsageLimiter {
       if (anonymous && anonymousUsed >= 3) {
         return { allowed: false, reason: 'anonymous_limit', shouldAlert: false };
       }
-      if (!anonymous && !unlimited && recent.length >= inviteLimit) {
+      if (!paid && !anonymous && !unlimited && recent.length >= inviteLimit) {
         return { allowed: false, reason: 'invite_limit', shouldAlert: false };
       }
       if (anonymous && (trialUsed + requestCostMicroUsd > trialBudgetMicroUsd || networkUsed >= networkLimit)) {
@@ -970,7 +1026,9 @@ export class BetaUsageLimiter {
         return { allowed: false, reason: 'daily_budget', shouldAlert: !alreadyAlerted };
       }
       await transaction.put({
-        ...(anonymous
+        ...(paid
+          ? { [`paid-credit:${inviteHash.slice(5)}`]: { ...credit, remaining: credit.remaining - 1 } }
+          : anonymous
           ? { [anonymousKey]: anonymousUsed + 1, [trialKey]: trialUsed + requestCostMicroUsd, [networkKey]: networkUsed + 1 }
           : unlimited
             ? {}
@@ -1075,7 +1133,7 @@ function corsHeaders(origin, allowedOrigin) {
   return {
     'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-    'Access-Control-Allow-Headers': `Content-Type, ${INVITE_HEADER}, ${DEVICE_HEADER}, ${REQUEST_HEADER}`,
+    'Access-Control-Allow-Headers': `Content-Type, Authorization, ${INVITE_HEADER}, ${DEVICE_HEADER}, ${REQUEST_HEADER}`,
     'Vary': 'Origin',
   };
 }
