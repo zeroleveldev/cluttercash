@@ -1,10 +1,35 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+function openAIResponse(value, overrides = {}) {
+  return {
+    id: 'resp_test_123',
+    status: 'completed',
+    output: [{type:'message', content:[{type:'output_text', text:JSON.stringify(value)}]}],
+    usage: {
+      input_tokens: 100,
+      input_tokens_details: {cached_tokens: 20},
+      output_tokens: 50,
+      output_tokens_details: {reasoning_tokens: 10},
+    },
+    ...overrides,
+  };
+}
+
+function providerResponse(value, overrides = {}) {
+  return Response.json(openAIResponse(value, overrides));
+}
+
+function assertClosedSchema(value) {
+  if (!value || typeof value !== 'object') return;
+  if (value.type === 'object') assert.equal(value.additionalProperties, false);
+  for (const child of Object.values(value)) assertClosedSchema(child);
+}
+
 for (const ids of [['same', 'same'], ['item-2', undefined], ['x'.repeat(129), 'ok'], ['', 'ok']]) {
   test(`CC-05 rejects invalid or colliding IDs ${JSON.stringify(ids)}`, async () => {
     const scan = {sceneSummary:'Shelf',items:ids.map(id=>({id,name:'Lamp',lowValue:10,typicalValue:10,highValue:10}))};
-    const fetcher = async () => Response.json({candidates:[{content:{parts:[{text:JSON.stringify(scan)}]}}]});
+    const fetcher = async () => providerResponse(scan);
     const response = await createHandler({fetcher})(imageRequest(), env);
     assert.equal(response.status,502);
   });
@@ -70,7 +95,7 @@ test('CC-14 static and owner hashes require explicit removal before durable revo
 test('CC-12 valid empty scene succeeds after one provider attempt', async () => {
   let calls=0;
   const expected={sceneSummary:'Empty shelf',items:[]};
-  const response=await createHandler({fetcher:async()=>{calls++;return Response.json({candidates:[{content:{parts:[{text:JSON.stringify(expected)}]}}]});}})(imageRequest(),env);
+  const response=await createHandler({fetcher:async()=>{calls++;return providerResponse(expected);}})(imageRequest(),env);
   assert.equal(response.status,200); assert.deepEqual(await response.json(),expected); assert.equal(calls,1);
 });
 for (const route of ['scans','items/identify']) for (const [mime,bytes,valid] of [
@@ -84,7 +109,7 @@ for (const route of ['scans','items/identify']) for (const [mime,bytes,valid] of
  const original=route==='scans'?imageRequest():labelRequest(); const form=await original.formData();
  form.set('image',new Blob([new Uint8Array(bytes)],{type:mime}),'../../private.jpg');
  let calls=0;let quotas=0;
- const response=await createHandler({fetcher:async(_url,init)=>{calls++;const part=JSON.parse(init.body).contents[0].parts[1].inlineData; assert.equal(part.mimeType,mime); assert.equal(part.data,Buffer.from(bytes).toString('base64')); return route==='scans'?quotaProvider():Response.json({candidates:[{content:{parts:[{text:JSON.stringify({exactName:'Camera',confidence:'high'})}]}}]});}})(new Request(original.url,{method:'POST',headers: {'X-ClutterCash-Invite':'test-invite'},body:form}),{...env,BETA_USAGE_LIMITER:{idFromName:n=>n,get:()=>({fetch:async()=>{quotas++;return Response.json({allowed:true});}})}});
+ const response=await createHandler({fetcher:async(_url,init)=>{calls++;const part=JSON.parse(init.body).input[0].content[1]; assert.equal(part.type,'input_image'); assert.match(part.image_url,new RegExp(`^data:${mime};base64,${Buffer.from(bytes).toString('base64')}$`)); return route==='scans'?quotaProvider():providerResponse({exactName:'Camera',confidence:'high'});}})(new Request(original.url,{method:'POST',headers: {'X-ClutterCash-Invite':'test-invite'},body:form}),{...env,BETA_USAGE_LIMITER:{idFromName:n=>n,get:()=>({fetch:async()=>{quotas++;return Response.json({allowed:true});}})}});
  assert.equal(response.status,valid?200:400);assert.equal(calls,valid?1:0);assert.equal(quotas,valid?1:0);
 });
 
@@ -110,32 +135,101 @@ for (const route of ['scans', 'items/identify']) for (const phase of ['headers',
 }
 
 
-for (const route of ['scans', 'items/identify']) test(`CC-01 ${route} bounds actual provider generation`, async () => {
-  let payload;
-  const response = await createHandler({fetcher:async (url, init)=>{
-    payload=JSON.parse(init.body);
-    assert.match(url, /\/gemini-2\.5-flash-lite:generateContent$/);
-    return route === 'scans' ? quotaProvider() : Response.json({candidates:[{content:{parts:[{text:JSON.stringify({exactName:'Verified camera',model:'Camera',confidence:'high'})}]}}]});
-  }})(route==='scans'?imageRequest():labelRequest(), env);
+for (const route of ['scans', 'items/identify']) test(`OPENAI-01 ${route} uses bounded GPT-5 nano Responses request`, async () => {
+  let target; let headers; let payload;
+  const result = route === 'scans'
+    ? {sceneSummary:'Shelf',items:[]}
+    : {exactName:'Canon AE-1',manufacturer:'Canon',model:'AE-1',confidence:'high',serialDetected:false,searchQuery:'Canon AE-1',marketplace:'ebay',marketplaceReason:'Exact-model buyers.'};
+  const openAIEnv = {
+    ...env,
+    OPENAI_API_KEY: 'synthetic-openai-key',
+    OPENAI_MODEL: 'gpt-5-nano',
+    OPENAI_MAX_REQUEST_COST_MICRO_USD: '131072',
+  };
+  const response = await createHandler({fetcher:async(url, init)=>{
+    target=url; headers=init.headers; payload=JSON.parse(init.body);
+    return Response.json(openAIResponse(result));
+  }})(route==='scans'?imageRequest():labelRequest(), openAIEnv);
   assert.equal(response.status,200);
-  assert.equal(payload.generationConfig.maxOutputTokens,4096);
-  assert.deepEqual(payload.generationConfig.thinkingConfig,{thinkingBudget:0});
-  assert.equal(payload.generationConfig.candidateCount,1);
-  assert.equal(payload.generationConfig.temperature,undefined);
-  assert.equal(payload.tools,undefined);
+  assert.equal(target,'https://api.openai.com/v1/responses');
+  assert.equal(headers.Authorization,'Bearer synthetic-openai-key');
+  assert.equal(payload.model,'gpt-5-nano');
+  assert.equal(payload.store,false);
+  assert.deepEqual(payload.reasoning,{effort:'low'});
+  assert.equal(payload.max_output_tokens,4096);
+  assert.deepEqual(payload.tools,[]);
+  assert.equal(payload.input.length,1);
+  assert.equal(payload.input[0].content[0].type,'input_text');
+  assert.equal(payload.input[0].content[1].type,'input_image');
+  assert.match(payload.input[0].content[1].image_url,/^data:image\/jpeg;base64,/);
+  assert.equal(payload.text.format.type,'json_schema');
+  assert.equal(payload.text.format.strict,true);
+  assertClosedSchema(payload.text.format.schema);
+  if (route === 'scans') assert.equal(payload.text.format.schema.properties.items.maxItems,10);
+  assert.equal(payload.contents,undefined);
+  assert.equal(payload.generationConfig,undefined);
 });
-for(const config of [{GEMINI_MODEL:undefined},{GEMINI_MAX_REQUEST_COST_MICRO_USD:'invalid'},{GEMINI_MAX_REQUEST_COST_MICRO_USD:'131072.5'},{GEMINI_MAX_REQUEST_COST_MICRO_USD:'9007199254740992'},{GEMINI_MODEL:'other-model'},{GEMINI_MAX_REQUEST_COST_MICRO_USD:'10000'},{GEMINI_MAX_REQUEST_COST_MICRO_USD:undefined},{GEMINI_MAX_REQUEST_COST_MICRO_USD:'131071'}]) test(`CC-01 unsafe cost configuration ${JSON.stringify(config)}`,async()=>{
+
+test('OPENAI-02 emits one sanitized usage metric for a successful scan', async () => {
+  const metrics=[];
+  const openAIEnv={...env,OPENAI_API_KEY:'synthetic-openai-key',OPENAI_MODEL:'gpt-5-nano',OPENAI_MAX_REQUEST_COST_MICRO_USD:'131072'};
+  const response=await createHandler({
+    now:(()=>{let value=1000;return()=>value+=25;})(),
+    providerMetricSender:async metric=>metrics.push(metric),
+    fetcher:async()=>Response.json(openAIResponse({sceneSummary:'Shelf',items:[]})),
+  })(imageRequest(),openAIEnv);
+  assert.equal(response.status,200);
+  assert.equal(metrics.length,1);
+  assert.deepEqual(metrics[0],{
+    event:'provider_analysis',route:'scan',provider:'openai',model:'gpt-5-nano',
+    requestId:'resp_test_123',success:true,failureCategory:'none',inputTokens:100,
+    cachedInputTokens:20,outputTokens:50,reasoningTokens:10,totalTokens:150,
+    estimatedCostMicroUsd:25,latencyMs:25,
+  });
+  const serialized=JSON.stringify(metrics);
+  for(const privateValue of ['synthetic-openai-key','Shelf','test-invite','data:image']) assert.equal(serialized.includes(privateValue),false);
+});
+
+test('OPENAI-03 incomplete response fails once and records a safe category', async () => {
+  let calls=0;const metrics=[];
+  const openAIEnv={...env,OPENAI_API_KEY:'synthetic-openai-key',OPENAI_MODEL:'gpt-5-nano',OPENAI_MAX_REQUEST_COST_MICRO_USD:'131072'};
+  const response=await createHandler({alertSender:async()=>{},providerMetricSender:async metric=>metrics.push(metric),fetcher:async()=>{
+    calls++;return Response.json(openAIResponse({}, {status:'incomplete',incomplete_details:{reason:'max_output_tokens'},output:[]}));
+  }})(imageRequest(),openAIEnv);
+  assert.equal(response.status,502);assert.equal(calls,1);assert.equal(metrics.length,1);
+  assert.equal(metrics[0].success,false);assert.equal(metrics[0].failureCategory,'incomplete');
+  assert.equal(metrics[0].requestId,'resp_test_123');
+});
+
+test('OPENAI-04 malformed structured output records a safe failure with request ID', async () => {
+  const metrics=[];
+  const response=await createHandler({alertSender:async()=>{},providerMetricSender:async metric=>metrics.push(metric),fetcher:async()=>providerResponse({}, {
+    output:[{type:'message',content:[{type:'output_text',text:'{not-json'}]}],
+  })})(imageRequest(),env);
+  assert.equal(response.status,502);assert.equal(metrics.length,1);
+  assert.equal(metrics[0].failureCategory,'malformed_response');
+  assert.equal(metrics[0].requestId,'resp_test_123');
+});
+
+test('OPENAI-05 scan validator returns at most ten objects', async () => {
+  const items=Array.from({length:11},(_,index)=>({id:`item-${index}`,name:`Item ${index}`,lowValue:1,typicalValue:2,highValue:3}));
+  const response=await createHandler({fetcher:async()=>providerResponse({sceneSummary:'Shelf',items})})(imageRequest(),env);
+  assert.equal(response.status,200);
+  assert.equal((await response.json()).items.length,10);
+});
+
+for(const config of [{OPENAI_MODEL:undefined},{OPENAI_MAX_REQUEST_COST_MICRO_USD:'invalid'},{OPENAI_MAX_REQUEST_COST_MICRO_USD:'131072.5'},{OPENAI_MAX_REQUEST_COST_MICRO_USD:'9007199254740992'},{OPENAI_MODEL:'other-model'},{OPENAI_MAX_REQUEST_COST_MICRO_USD:'10000'},{OPENAI_MAX_REQUEST_COST_MICRO_USD:undefined},{OPENAI_MAX_REQUEST_COST_MICRO_USD:'71199'}]) test(`CC-01 unsafe cost configuration ${JSON.stringify(config)}`,async()=>{
   let calls=0; let quotas=0;
   const response=await createHandler({fetcher:async()=>{calls++;return quotaProvider();}})(imageRequest(),{...env,...config,
     BETA_USAGE_LIMITER:{idFromName:n=>n,get:()=>({fetch:async()=>{quotas++;return Response.json({allowed:true});}})},
   });
   assert.equal(response.status,503);assert.equal(calls,0);assert.equal(quotas,0);
 });
-test('CC-01 2.5 Flash-Lite full-window bound is accepted and forwarded exactly to reservation',async()=>{
+test('CC-01 GPT-5 nano conservative reservation is accepted and forwarded exactly',async()=>{
   let reserved;
-  const exact={...env,GEMINI_MAX_REQUEST_COST_MICRO_USD:'131072',BETA_USAGE_LIMITER:{idFromName:n=>n,get:()=>({fetch:async request=>{reserved=await request.json();return Response.json({allowed:true});}})}};
+  const exact={...env,OPENAI_MAX_REQUEST_COST_MICRO_USD:'131072',BETA_USAGE_LIMITER:{idFromName:n=>n,get:()=>({fetch:async request=>{reserved=await request.json();return Response.json({allowed:true});}})}};
   assert.equal((await createHandler({fetcher:quotaProvider})(imageRequest(),exact)).status,200);
-  assert.equal(reserved.requestCostMicroUsd,Math.ceil(1048576*.1+65536*.4));
+  assert.equal(reserved.requestCostMicroUsd,131072);
 });
 
 for (const declared of [undefined, '1', String(10 * 1024 * 1024)]) test(`CC-01 bounds streamed multipart before reservation declared=${declared}`, async () => {
@@ -191,7 +285,7 @@ for (const route of ['scans', 'items/identify']) {
         const fetcher = async () => {
           if (failure === 'transport') throw new Error(privateText);
           if (failure === 'body') return new Response(privateText);
-          return Response.json({candidates:[{content:{parts:[{text:privateText}]}}]});
+          return providerResponse(privateText);
         };
         const response = await createHandler({fetcher, alertSender: async event => alerts.push(event)})(
           route === 'scans' ? imageRequest() : labelRequest(), env);
@@ -237,7 +331,7 @@ for (const invalid of ['missingName', 'blankName', 'longName', 'fileName', 'long
 
 for (const value of [1e308, 1000001, -1, null, 'NaN']) {
   test(`CC-03 rejects unsupported provider price ${value}`, async () => {
-    const fetcher = async () => Response.json({candidates:[{content:{parts:[{text:JSON.stringify({sceneSummary:'Shelf',items:[{name:'Lamp',lowValue:value,typicalValue:value,highValue:value}]})}]}}]});
+    const fetcher = async () => providerResponse({sceneSummary:'Shelf',items:[{name:'Lamp',lowValue:value,typicalValue:value,highValue:value}]});
     const response = await createHandler({fetcher})(imageRequest(), env);
     assert.equal(response.status,502);
   });
@@ -251,7 +345,7 @@ function anonymousRequest(token, ip = '203.0.113.10') {
   else request.headers.delete('CF-Connecting-IP');
   return request;
 }
-const quotaProvider = async () => Response.json({candidates:[{content:{parts:[{text:JSON.stringify({sceneSummary:'Shelf',items:[{name:'Lamp',lowValue:1,typicalValue:2,highValue:3}]})}]}}]});
+const quotaProvider = async () => providerResponse({sceneSummary:'Shelf',items:[{name:'Lamp',lowValue:1,typicalValue:2,highValue:3}]});
 
 test('CC-02 parallel rotated trials cannot consume invited capacity; owner stays globally capped', async () => {
   const limited = {...memoryDurableEnv(), BETA_ANONYMOUS_DAILY_BUDGET_MICRO_USD:String(6 * 131072), BETA_ANONYMOUS_NETWORK_DAILY_LIMIT:'6', BETA_DAILY_BUDGET_MICRO_USD:String(10 * 131072), BETA_OWNER_INVITE_CODE_HASHES:env.BETA_INVITE_CODE_HASHES};
@@ -311,15 +405,15 @@ for (const config of [
 });
 
 const env = {
-  GEMINI_API_KEY: 'test-secret',
-  GEMINI_MODEL: 'gemini-2.5-flash-lite',
+  OPENAI_API_KEY: 'test-secret',
+  OPENAI_MODEL: 'gpt-5-nano',
   ALLOWED_ORIGIN: 'https://zeroleveldev.github.io',
   BETA_INVITE_CODE_HASHES: '["3ac96c6f1013fc0c2f5c5309d075f7785f1e3024609a64224bc6f406082af744"]',
   BETA_WEEKLY_REQUEST_LIMIT: '3',
   BETA_ANONYMOUS_DAILY_BUDGET_MICRO_USD: '3000000',
   BETA_ANONYMOUS_NETWORK_DAILY_LIMIT: '6',
   BETA_DAILY_BUDGET_MICRO_USD: '5000000',
-  GEMINI_MAX_REQUEST_COST_MICRO_USD: '131072',
+  OPENAI_MAX_REQUEST_COST_MICRO_USD: '131072',
   ADMIN_API_KEY: 'test-admin-secret-at-least-32-bytes',
   BETA_USAGE_LIMITER: {
     idFromName: (name) => name,
@@ -420,14 +514,14 @@ function telemetryRequest(body, { invite = 'test-invite', origin = env.ALLOWED_O
   });
 }
 
-test('health is public and never exposes the Gemini secret', async () => {
+test('health is public and never exposes the OpenAI secret', async () => {
   const response = await createHandler({ fetcher: async () => { throw new Error('unused'); } })(
     new Request('https://api.example/health'), env,
   );
   assert.equal(response.status, 200);
   const body = await response.json();
-  assert.deepEqual(body, { ok: true, analysisReady: true, provider: 'gemini' });
-  assert.equal(JSON.stringify(body).includes(env.GEMINI_API_KEY), false);
+  assert.deepEqual(body, { ok: true, analysisReady: true, provider: 'openai' });
+  assert.equal(JSON.stringify(body).includes(env.OPENAI_API_KEY), false);
 });
 
 test('rejects real-photo analysis without explicit free-beta consent', async () => {
@@ -506,8 +600,7 @@ test('allows three no-registration analyses through a random browser token', asy
     'X-ClutterCash-Device',
     'anonymous-browser-token-at-least-32-bytes',
   );
-  const fetcher = async () => Response.json({
-    candidates: [{ content: { parts: [{ text: JSON.stringify({
+  const fetcher = async () => providerResponse({
       sceneSummary: 'Shelf',
       items: [{
         id: 'lamp', name: 'Lamp', category: 'Home', lowValue: 10,
@@ -516,7 +609,6 @@ test('allows three no-registration analyses through a random browser token', asy
         marketplace: 'localPickup', marketplaceReason: 'Easy pickup.',
         box: { left: 0, top: 0, width: 1, height: 1 },
       }],
-    }) }] } }],
   });
 
   const response = await createHandler({ fetcher })(request, anonymousEnv);
@@ -643,8 +735,7 @@ test('approved browser uses rolling beta quota instead of exhausted free-use quo
   const request = imageRequest();
   request.headers.delete('X-ClutterCash-Invite');
   request.headers.set('X-ClutterCash-Device', 'approved-browser-token-at-least-32-bytes');
-  const fetcher = async () => Response.json({
-    candidates: [{ content: { parts: [{ text: JSON.stringify({
+  const fetcher = async () => providerResponse({
       sceneSummary: 'Shelf',
       items: [{
         id: 'lamp', name: 'Lamp', category: 'Home', lowValue: 10,
@@ -653,7 +744,6 @@ test('approved browser uses rolling beta quota instead of exhausted free-use quo
         marketplace: 'localPickup', marketplaceReason: 'Easy pickup.',
         box: { left: 0, top: 0, width: 1, height: 1 },
       }],
-    }) }] } }],
   });
 
   const response = await createHandler({ fetcher })(request, approvedEnv);
@@ -868,8 +958,7 @@ test('configured owner invite bypasses the per-invite analysis allowance', async
       }),
     },
   };
-  const fetcher = async () => Response.json({
-    candidates: [{ content: { parts: [{ text: JSON.stringify({
+  const fetcher = async () => providerResponse({
       sceneSummary: 'Shelf',
       items: [{
         id: 'lamp', name: 'Lamp', category: 'Home', lowValue: 10,
@@ -878,7 +967,6 @@ test('configured owner invite bypasses the per-invite analysis allowance', async
         marketplace: 'localPickup', marketplaceReason: 'Easy pickup.',
         box: { left: 0, top: 0, width: 1, height: 1 },
       }],
-    }) }] } }],
   });
 
   const response = await createHandler({ fetcher })(imageRequest(), ownerEnv);
@@ -948,7 +1036,7 @@ test('uses durable quota and alerts once when the daily budget is reached', asyn
     budgetMicroUsd: 5000000,
     requestCostMicroUsd: 131072,
   });
-  assert.doesNotMatch(await response.text(), /budget|Gemini|131072/i);
+  assert.doesNotMatch(await response.text(), /budget|OpenAI|131072/i);
 });
 
 test('fails closed when the durable quota binding is unavailable', async () => {
@@ -1069,11 +1157,11 @@ test('provider failures emit a sanitized operational alert', async () => {
   assert.doesNotMatch(JSON.stringify(alerts), /secret|test-invite|test-secret/);
 });
 
-test('sends the image to Gemini and returns a validated scan contract', async () => {
+test('sends the image to OpenAI and returns a validated scan contract', async () => {
   let providerRequest;
   const fetcher = async (_url, options) => {
     providerRequest = JSON.parse(options.body);
-    return Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify({
+    return providerResponse({
       sceneSummary: 'Garage shelf',
       items: [{ id: 'camera', name: 'Film camera', category: 'Cameras', lowValue: 80,
         typicalValue: 110, highValue: 150, confidence: 'medium', effort: 'medium',
@@ -1083,7 +1171,7 @@ test('sends the image to Gemini and returns a validated scan contract', async ()
         marketplaceReason: 'eBay has a broad camera buyer pool.',
         missingDetails: ['Exact model', 'Working condition'],
         box: { left: .1, top: .2, width: .3, height: .4 } }],
-    }) }] } }] });
+    });
   };
   const response = await createHandler({ fetcher })(imageRequest(), env);
   assert.equal(response.status, 200);
@@ -1093,14 +1181,14 @@ test('sends the image to Gemini and returns a validated scan contract', async ()
   assert.equal('listingDescription' in result.items[0], false);
   assert.equal(result.items[0].marketplace, 'ebay');
   assert.equal('missingDetails' in result.items[0], false);
-  assert.equal(providerRequest.contents[0].parts[1].inlineData.mimeType, 'image/jpeg');
-  assert.equal(providerRequest.generationConfig.responseMimeType, 'application/json');
-  assert.equal('maxItems' in providerRequest.generationConfig.responseJsonSchema.properties.items, false);
+  assert.match(providerRequest.input[0].content[1].image_url, /^data:image\/jpeg;base64,/);
+  assert.equal(providerRequest.text.format.type, 'json_schema');
+  assert.equal(providerRequest.text.format.schema.properties.items.maxItems, 10);
 });
 
 for (const serial of ['PRIVATE-123', 'A.B[42]']) test(`CC-10 redacts explicitly identified serial ${serial} without losing model identity`, async () => {
   const identity = {exactName:`Canon AE-1 ${serial}`, manufacturer:`Canon ${serial}`, model:`AE-1 ${serial}`, searchQuery:`camera ${serial}`, marketplaceReason:`Compare ${serial}`, serialNumber:serial, serialDetected:true};
-  const response = await createHandler({fetcher:async()=>Response.json({candidates:[{content:{parts:[{text:JSON.stringify(identity)}]}}]})})(labelRequest(),env);
+  const response = await createHandler({fetcher:async()=>providerResponse(identity)})(labelRequest(),env);
   assert.equal(response.status,200);
   const result = await response.json();
   assert.equal(JSON.stringify(result).includes(serial),false);
@@ -1114,7 +1202,7 @@ test('uses a label photo to refine an item without returning its serial number',
   let providerRequest;
   const fetcher = async (_url, options) => {
     providerRequest = JSON.parse(options.body);
-    return Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify({
+    return providerResponse({
       exactName: 'Canon AE-1 35mm film camera', manufacturer: 'Canon', model: 'AE-1',
       confidence: 'high', serialDetected: true, serialNumber: 'REDACT-ME-123',
       searchQuery: 'Canon AE-1 35mm film camera body',
@@ -1122,7 +1210,7 @@ test('uses a label photo to refine an item without returning its serial number',
       listingDescription: 'Canon AE-1 35mm film camera body. Confirm operation, cosmetic wear, lens, battery, and accessories before posting.',
       marketplace: 'ebay', marketplaceReason: 'Collectors search by exact model on eBay.',
       missingDetails: ['Working condition', 'Included lens and accessories'],
-    }) }] } }] });
+    });
   };
 
   const response = await createHandler({ fetcher })(labelRequest(), env);
@@ -1136,14 +1224,14 @@ test('uses a label photo to refine an item without returning its serial number',
   assert.equal('listingDescription' in result, false);
   assert.equal('missingDetails' in result, false);
   assert.equal(JSON.stringify(result).includes('REDACT-ME-123'), false);
-  assert.match(providerRequest.contents[0].parts[0].text, /never return.*serial/i);
-  assert.equal(providerRequest.contents[0].parts[1].inlineData.mimeType, 'image/jpeg');
+  assert.match(providerRequest.input[0].content[0].text, /never return.*serial/i);
+  assert.match(providerRequest.input[0].content[1].image_url, /^data:image\/jpeg;base64,/);
 });
 
 test('does not echo provider errors or secrets to clients', async () => {
-  const response = await createHandler({ fetcher: async () => new Response(`bad ${env.GEMINI_API_KEY}`, { status: 429 }) })(imageRequest(), env);
+  const response = await createHandler({ fetcher: async () => new Response(`bad ${env.OPENAI_API_KEY}`, { status: 429 }) })(imageRequest(), env);
   assert.equal(response.status, 502);
   const text = await response.text();
-  assert.equal(text.includes(env.GEMINI_API_KEY), false);
+  assert.equal(text.includes(env.OPENAI_API_KEY), false);
   assert.match(text, /try again/i);
 });

@@ -5,15 +5,18 @@ import { handleSubscriberIdentity, subscriberIdentityCommand } from './subscribe
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const MAX_UPLOAD_BYTES = MAX_IMAGE_BYTES + 64 * 1024;
-const SUPPORTED_GEMINI_MODEL = 'gemini-2.5-flash-lite';
+const SUPPORTED_OPENAI_MODEL = 'gpt-5-nano';
 const MAX_OUTPUT_TOKENS = 4096;
-// Standard pricing: $0.10/M input, $0.40/M output (including thinking).
-// Thinking is explicitly disabled and visible output is capped at 4096 tokens.
-// Still reserve the ENTIRE published input and output windows: this avoids
-// relying on approximate image tiling or treating a thinking control as a
-// stronger billing guarantee than the provider's absolute model limits.
+const MAX_RETURNED_ITEMS = 10;
+// GPT-5 nano standard pricing: $0.05/M input, $0.005/M cached input,
+// and $0.40/M output. Reserve the entire published 400K input and 128K output
+// windows rather than relying on approximate image-token calculations.
 // Sources and operator limitations: docs/WORKER_BETA_OPERATIONS.md.
-const MIN_REQUEST_COST_MICRO_USD = Math.ceil(1048576 * 0.10 + 65536 * 0.40);
+const INPUT_COST_MICRO_USD_PER_TOKEN = 0.05;
+const CACHED_INPUT_COST_MICRO_USD_PER_TOKEN = 0.005;
+const OUTPUT_COST_MICRO_USD_PER_TOKEN = 0.40;
+const MIN_REQUEST_COST_MICRO_USD = Math.ceil(400000 * INPUT_COST_MICRO_USD_PER_TOKEN
+  + 128000 * OUTPUT_COST_MICRO_USD_PER_TOKEN);
 const INVITE_HEADER = 'X-ClutterCash-Invite';
 const DEVICE_HEADER = 'X-ClutterCash-Device';
 const REQUEST_HEADER = 'X-ClutterCash-Request';
@@ -30,17 +33,20 @@ const TELEMETRY_EVENTS = new Set([
 ]);
 const TELEMETRY_FAILURE_CODES = new Set(['api', 'network', 'unknown', 'framework', 'async']);
 
-const prompt = `Analyze this staged, non-sensitive household clutter photo for decluttering triage. Identify up to 12 clearly visible objects that may be sold, bundled, donated, recycled, or kept. Be conservative. Resale values are broad US-dollar hypotheses, not live marketplace data or appraisals. Never infer a luxury brand, authenticity, exact model, material, dimensions, condition, or included accessories unless visible. High-value or uncertain objects must tell the user what label, model, or condition photo to add. Recommend donate or bundle where sale effort likely exceeds value. For each item, create a concise searchQuery for finding truly comparable listings without adding facts that are not visible, plus a marketplace recommendation chosen from ebay, facebookMarketplace, mercari, localPickup, consignment, or donate with a reason. Do not create listing copy or claim that any live listings or completed sales were researched. Bounding boxes use normalized 0..1 coordinates. Return only the requested JSON schema.`;
+const prompt = `Analyze this staged, non-sensitive household clutter photo for decluttering triage. Return at most 10 clearly visible objects, prioritizing items that may have meaningful resale value and omitting ordinary low-value clutter unless it should be bundled or donated. Be conservative. Resale values are broad US-dollar hypotheses, not live marketplace data or appraisals. Never infer a luxury brand, authenticity, exact model, material, dimensions, condition, or included accessories unless visible. High-value or uncertain objects must say what label, model, or condition photo would improve confidence. For each item, create a concise searchQuery for comparable listings without adding facts that are not visible, plus a marketplace recommendation chosen from ebay, facebookMarketplace, mercari, localPickup, consignment, or donate with a reason. Do not create listing copy or claim that live listings or completed sales were researched. Bounding boxes use normalized 0..1 coordinates. Return only the requested JSON schema.`;
 
 const responseSchema = {
   type: 'object',
+  additionalProperties: false,
   required: ['sceneSummary', 'items'],
   properties: {
     sceneSummary: { type: 'string' },
     items: {
       type: 'array',
+      maxItems: MAX_RETURNED_ITEMS,
       items: {
         type: 'object',
+        additionalProperties: false,
         required: ['id', 'name', 'category', 'lowValue', 'typicalValue', 'highValue', 'confidence', 'effort', 'route', 'reason', 'searchQuery', 'marketplace', 'marketplaceReason', 'box'],
         properties: {
           id: { type: 'string' },
@@ -60,6 +66,7 @@ const responseSchema = {
 
           box: {
             type: 'object',
+            additionalProperties: false,
             required: ['left', 'top', 'width', 'height'],
             properties: {
               left: { type: 'number' }, top: { type: 'number' },
@@ -76,6 +83,7 @@ const identityPrompt = `Read this close-up product label for an already identifi
 
 const identitySchema = {
   type: 'object',
+  additionalProperties: false,
   required: ['exactName', 'manufacturer', 'model', 'confidence', 'serialDetected', 'searchQuery', 'marketplace', 'marketplaceReason'],
   properties: {
     exactName: { type: 'string' },
@@ -99,6 +107,7 @@ export function createHandler({
   now = () => Date.now(),
   alertSender = sendOperationalAlert,
   telemetrySender = recordTelemetry,
+  providerMetricSender = recordProviderMetric,
   idGenerator = () => crypto.randomUUID(),
   tokenGenerator = generateInviteCode,
   approvalTokenGenerator = generateApprovalToken,
@@ -121,7 +130,7 @@ export function createHandler({
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors || {} });
 
     if (url.pathname === '/health' && request.method === 'GET') {
-      return json({ ok: true, analysisReady: Boolean(env.GEMINI_API_KEY), provider: 'gemini' }, 200, cors);
+      return json({ ok: true, analysisReady: Boolean(env.OPENAI_API_KEY), provider: 'openai' }, 200, cors);
     }
     const statusMatch = url.pathname.match(/^\/v1\/access-requests\/([A-Za-z0-9_-]{1,100})\/status$/);
     if (statusMatch && request.method === 'GET') {
@@ -297,10 +306,10 @@ export function createHandler({
       return json({ accepted: true }, 202, cors);
     }
 
-    if (!env.GEMINI_API_KEY) return json({ error: 'Live analysis is not configured.' }, 503, cors);
+    if (!env.OPENAI_API_KEY) return json({ error: 'Live analysis is not configured.' }, 503, cors);
 
-    if (env.GEMINI_MODEL !== SUPPORTED_GEMINI_MODEL
-      || positiveInteger(env.GEMINI_MAX_REQUEST_COST_MICRO_USD) < MIN_REQUEST_COST_MICRO_USD) {
+    if (env.OPENAI_MODEL !== SUPPORTED_OPENAI_MODEL
+      || positiveInteger(env.OPENAI_MAX_REQUEST_COST_MICRO_USD) < MIN_REQUEST_COST_MICRO_USD) {
       return json({ error: 'Live analysis is temporarily unavailable.' }, 503, cors);
     }
 
@@ -392,41 +401,68 @@ export function createHandler({
       validate = validateIdentity;
     }
 
+    const model = SUPPORTED_OPENAI_MODEL;
+    const metric = emptyProviderMetric(isIdentity ? 'identity' : 'scan', model);
+    const providerStartedAt = now();
     try {
-      const model = SUPPORTED_GEMINI_MODEL;
-      const providerBody = await withProviderDeadline(async (signal) => {
-      const providerResponse = await fetcher(
-        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
-        {
+      const providerResult = await withProviderDeadline(async (signal) => {
+        const providerResponse = await fetcher('https://api.openai.com/v1/responses', {
           method: 'POST',
           signal,
-          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${env.OPENAI_API_KEY}`,
+          },
           body: JSON.stringify({
-            contents: [{ role: 'user', parts: [
-              { text: taskPrompt },
-              { inlineData: { mimeType: image.type, data: toBase64(bytes) } },
+            model,
+            store: false,
+            reasoning: { effort: 'low' },
+            max_output_tokens: MAX_OUTPUT_TOKENS,
+            tools: [],
+            input: [{ role: 'user', content: [
+              { type: 'input_text', text: taskPrompt },
+              { type: 'input_image', image_url: `data:${image.type};base64,${toBase64(bytes)}`, detail: 'high' },
             ] }],
-            generationConfig: {
-              maxOutputTokens: MAX_OUTPUT_TOKENS,
-              thinkingConfig: { thinkingBudget: 0 },
-              candidateCount: 1,
-              responseMimeType: 'application/json',
-              responseJsonSchema: taskSchema,
-            },
+            text: { format: {
+              type: 'json_schema',
+              name: isIdentity ? 'identity_result' : 'scan_result',
+              strict: true,
+              schema: taskSchema,
+            } },
           }),
-        },
-      );
-      if (!providerResponse.ok) {
-        const failure = new Error(`Gemini returned ${providerResponse.status}`);
-        failure.status = providerResponse.status;
-        throw failure;
-      }
-      return await providerResponse.json();
+        });
+        const requestId = safeProviderRequestId(providerResponse.headers.get('x-request-id'));
+        if (!providerResponse.ok) {
+          const failure = new Error('Provider HTTP failure');
+          failure.status = providerResponse.status;
+          failure.failureCategory = 'http';
+          failure.requestId = requestId;
+          throw failure;
+        }
+        try {
+          return { body: await providerResponse.json(), requestId };
+        } catch (error) {
+          error.failureCategory = 'malformed_response';
+          error.requestId = requestId;
+          throw error;
+        }
       }, providerTimeoutMs);
-      const text = providerBody?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!text) throw new Error('Gemini returned no structured content');
-      return json(validate(JSON.parse(text)), 200, cors);
+      applyProviderUsage(metric, providerResult.body?.usage);
+      metric.requestId = providerResult.requestId || safeProviderRequestId(providerResult.body?.id);
+      let validated;
+      try {
+        const text = openAIOutputText(providerResult.body);
+        validated = validate(JSON.parse(text));
+      } catch (error) {
+        error.failureCategory ||= 'malformed_response';
+        throw error;
+      }
+      metric.success = true;
+      metric.failureCategory = 'none';
+      return json(validated, 200, cors);
     } catch (error) {
+      metric.requestId = safeProviderRequestId(error?.requestId) || metric.requestId;
+      metric.failureCategory = safeFailureCategory(error);
       console.error(isIdentity ? 'identity_failed' : 'scan_failed');
       await alertSender({
         event: isIdentity ? 'identity_failed' : 'scan_failed',
@@ -435,6 +471,9 @@ export function createHandler({
       return json({ error: isIdentity
         ? 'The label could not be analyzed. Please try another close photo.'
         : 'The scan could not be completed. Please try again.' }, 502, cors);
+    } finally {
+      metric.latencyMs = Math.max(0, now() - providerStartedAt);
+      try { await providerMetricSender(metric); } catch { /* Metrics never alter analysis. */ }
     }
   };
 }
@@ -447,11 +486,69 @@ async function withProviderDeadline(operation, timeoutMs) {
   const deadline = new Promise((_, reject) => {
     timer = setTimeout(() => {
       controller.abort();
-      reject(new Error('Provider deadline exceeded'));
+      const failure = new Error('Provider deadline exceeded');
+      failure.failureCategory = 'timeout';
+      reject(failure);
     }, timeoutMs);
   });
   try { return await Promise.race([operation(controller.signal), deadline]); }
   finally { clearTimeout(timer); }
+}
+
+function providerFailure(category) {
+  const failure = new Error('Provider response rejected');
+  failure.failureCategory = category;
+  return failure;
+}
+
+function openAIOutputText(body) {
+  if (!body || body.status !== 'completed') throw providerFailure('incomplete');
+  const content = Array.isArray(body.output)
+    ? body.output.flatMap(item => Array.isArray(item?.content) ? item.content : [])
+    : [];
+  if (content.some(item => item?.type === 'refusal')) throw providerFailure('refusal');
+  const texts = content.filter(item => item?.type === 'output_text' && typeof item.text === 'string');
+  if (texts.length !== 1 || !texts[0].text) throw providerFailure('malformed_response');
+  return texts[0].text;
+}
+
+function safeProviderRequestId(value) {
+  return typeof value === 'string' && /^[A-Za-z0-9_.:-]{1,128}$/.test(value) ? value : '';
+}
+
+function tokenCount(value) {
+  return Number.isSafeInteger(value) && value >= 0 ? value : 0;
+}
+
+function emptyProviderMetric(route, model) {
+  return {
+    event: 'provider_analysis', route, provider: 'openai', model,
+    requestId: '', success: false, failureCategory: 'unknown', inputTokens: 0,
+    cachedInputTokens: 0, outputTokens: 0, reasoningTokens: 0, totalTokens: 0,
+    estimatedCostMicroUsd: 0, latencyMs: 0,
+  };
+}
+
+function applyProviderUsage(metric, usage) {
+  metric.inputTokens = tokenCount(usage?.input_tokens);
+  metric.cachedInputTokens = Math.min(metric.inputTokens, tokenCount(usage?.input_tokens_details?.cached_tokens));
+  metric.outputTokens = tokenCount(usage?.output_tokens);
+  metric.reasoningTokens = Math.min(metric.outputTokens, tokenCount(usage?.output_tokens_details?.reasoning_tokens));
+  metric.totalTokens = tokenCount(usage?.total_tokens) || metric.inputTokens + metric.outputTokens;
+  const uncachedInput = metric.inputTokens - metric.cachedInputTokens;
+  metric.estimatedCostMicroUsd = Math.ceil(
+    uncachedInput * INPUT_COST_MICRO_USD_PER_TOKEN
+    + metric.cachedInputTokens * CACHED_INPUT_COST_MICRO_USD_PER_TOKEN
+    + metric.outputTokens * OUTPUT_COST_MICRO_USD_PER_TOKEN,
+  );
+}
+
+function safeFailureCategory(error) {
+  if (['http', 'timeout', 'incomplete', 'refusal', 'malformed_response'].includes(error?.failureCategory)) {
+    return error.failureCategory;
+  }
+  if (error instanceof SyntaxError) return 'malformed_response';
+  return 'transport';
 }
 
 function betaAccessConfigured(env) {
@@ -706,7 +803,7 @@ async function reserveProviderBudget(env, inviteHash, timestamp, unlimited = fal
         } : {}),
         ...(unlimited ? { unlimited: true } : {}),
         budgetMicroUsd: positiveInteger(env.BETA_DAILY_BUDGET_MICRO_USD),
-        requestCostMicroUsd: positiveInteger(env.GEMINI_MAX_REQUEST_COST_MICRO_USD),
+        requestCostMicroUsd: positiveInteger(env.OPENAI_MAX_REQUEST_COST_MICRO_USD),
       }),
     }));
     if (!response.ok) return { available: false, status: 503 };
@@ -1066,6 +1163,10 @@ async function recordTelemetry(event) {
   console.info(JSON.stringify({ source: 'cluttercash-beta', ...event }));
 }
 
+async function recordProviderMetric(metric) {
+  console.info(JSON.stringify({ source: 'cluttercash-provider', ...metric }));
+}
+
 function approvalConfirmationPage(requestUrl) {
   const action = escapeHtml(requestUrl);
   return html(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Approve ClutterCash access</title></head><body><main><h1>Approve beta access?</h1><p>This will activate continued access in the browser that submitted the request.</p><form method="post" action="${action}"><button type="submit">Activate access</button></form><p><small>No access code or private token will be posted to Discord.</small></p></main></body></html>`, 200);
@@ -1163,14 +1264,14 @@ function imageMime(bytes) {
 
 function validateScan(value) {
   if (!value || typeof value.sceneSummary !== 'string' || !Array.isArray(value.items)) {
-    throw new Error('Invalid Gemini response');
+    throw new Error('Invalid provider response');
   }
   const levels = new Set(['low', 'medium', 'high']);
   const routes = new Set(['sell', 'bundle', 'donate', 'recycle', 'keep']);
   const marketplaces = new Set(['ebay', 'facebookMarketplace', 'mercari', 'localPickup', 'consignment', 'donate']);
   const ids = new Set();
-  const items = value.items.slice(0, 20).map((item, index) => {
-    if (!item || typeof item.name !== 'string') throw new Error('Invalid Gemini item');
+  const items = value.items.slice(0, MAX_RETURNED_ITEMS).map((item, index) => {
+    if (!item || typeof item.name !== 'string') throw new Error('Invalid provider item');
     const id = item.id ?? `item-${index + 1}`;
     if (typeof id !== 'string' || !id.trim() || id.length > 128 || ids.has(id)) {
       throw new Error('Invalid or duplicate item ID');
@@ -1206,7 +1307,7 @@ function validateScan(value) {
 }
 
 function validateIdentity(value) {
-  if (!value || typeof value.exactName !== 'string') throw new Error('Invalid Gemini identity');
+  if (!value || typeof value.exactName !== 'string') throw new Error('Invalid provider identity');
   const levels = new Set(['low', 'medium', 'high']);
   const marketplaces = new Set(['ebay', 'facebookMarketplace', 'mercari', 'localPickup', 'consignment', 'donate']);
   return {

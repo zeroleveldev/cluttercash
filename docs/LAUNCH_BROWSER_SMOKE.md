@@ -5,7 +5,7 @@ Actual local release build served at http://127.0.0.1:8765/cluttercash/ (HTTP re
 ## Verified in this run
 
 - Startup rendered at phone size; Flutter semantics enabled, screenshots inspected.
-- Visible Privacy & beta terms control opened the policy, including Gemini processing, crop/cover guidance, qualified serial filtering, local saves, and daily address-hash retention disclosure.
+- Visible Privacy & beta terms control opened the policy, including OpenAI processing, crop/cover guidance, qualified serial filtering, local saves, and daily address-hash retention disclosure.
 - Scan screen → explicitly labelled demo room (not live AI) → item details → correction form.
 - Corrected camera to `Verified smoke camera`, low/typical/high 100/150/200 through real inputs; visible detail/range and marketplace query text updated; stale recommendation replaced by qualified local-pickup guidance.
 - Saved three selected demo items into Garage Reset. Read back browser local storage: corrected name/range/searchQuery and isDemo=true persisted.

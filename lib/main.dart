@@ -436,7 +436,7 @@ class BetaTermsScreen extends StatelessWidget {
               _TermsSection(
                 title: 'Photos and AI processing',
                 body:
-                    'When you choose a live scan or model-label photo and accept the upload notice, the app sends the image through ClutterCash’s Cloudflare Worker to Google Gemini. The Worker processes image bytes in memory and is designed not to write them to disk. Google may review free-tier submissions and use them to improve its products. Crop or cover serials before uploading, keeping maker/model details visible. We omit dedicated serial fields and apply limited exact-text filtering, but cannot guarantee exclusion from results, local saves, or marketplace searches. Review and correct private details before saving or researching. Filtering a response does not remove details from the photo sent to Gemini. Never upload faces, mail, addresses, keys, medication, documents, account information, or other sensitive/private content.',
+                    'When you choose a live scan or model-label photo and accept the upload notice, the app sends the image through ClutterCash’s Cloudflare Worker to the OpenAI API. The Worker processes image bytes in memory and is designed not to write them to disk, and requests use store=false. OpenAI states API data is not used to train its models by default, but abuse-monitoring logs may retain customer content for up to 30 days. Crop or cover serials before uploading, keeping maker/model details visible. We omit dedicated serial fields and apply limited exact-text filtering, but cannot guarantee exclusion from results, local saves, or marketplace searches. Review and correct private details before saving or researching. Filtering a response does not remove details from the photo sent to OpenAI. Never upload faces, mail, addresses, keys, medication, documents, account information, or other sensitive/private content.',
               ),
               _TermsSection(
                 title: 'Your data and local storage',
@@ -1280,7 +1280,7 @@ class _BetaInviteCodeScreenState extends State<BetaInviteCodeScreen> {
                 ),
                 const SizedBox(height: 10),
                 const Text(
-                  'Your code allows a small number of live analyses. It is saved only on this device and is not your Gemini or account password.',
+                  'Your code allows a small number of live analyses. It is saved only on this device and is not your OpenAI or account password.',
                   style: TextStyle(color: _muted, height: 1.4),
                 ),
                 const SizedBox(height: 24),
@@ -2097,7 +2097,7 @@ class _ItemDetailsSheetState extends State<_ItemDetailsSheet> {
         title: const Text('Photograph the model label'),
         content: const SingleChildScrollView(
           child: Text(
-            'Look for the maker, model, model number, or part number. Those details help find the exact product.\n\nA unique serial number usually does not help with pricing. Crop or cover serials before uploading, keeping the maker and model visible. We ask AI to omit serials and apply limited text filtering, but cannot guarantee exclusion from results, saved corrections, or marketplace searches. Review and correct the identity before saving or opening research links.\n\nThe photo is sent to Google Gemini under the free beta and may be reviewed or used to improve products. Avoid faces, addresses, documents, account details, or anything else private.',
+            'Look for the maker, model, model number, or part number. Those details help find the exact product.\n\nA unique serial number usually does not help with pricing. Crop or cover serials before uploading, keeping the maker and model visible. We ask AI to omit serials and apply limited text filtering, but cannot guarantee exclusion from results, saved corrections, or marketplace searches. Review and correct the identity before saving or opening research links.\n\nThe photo is sent to the OpenAI API through ClutterCash. OpenAI states API data is not used to train its models by default, but abuse-monitoring logs may retain customer content for up to 30 days. Avoid faces, addresses, documents, account details, or anything else private.',
           ),
         ),
         actions: [
@@ -2911,7 +2911,7 @@ class _TrustNote extends StatelessWidget {
       SizedBox(width: 9),
       Expanded(
         child: Text(
-          'Your room may contain private details. Avoid faces, addresses, mail, medication, keys, documents, and other sensitive belongings. Live photos are sent through ClutterCash to Google Gemini only after you accept the upload notice.',
+          'Your room may contain private details. Avoid faces, addresses, mail, medication, keys, documents, and other sensitive belongings. Live photos are sent through ClutterCash to the OpenAI API only after you accept the upload notice.',
           style: TextStyle(color: _muted, fontSize: 11, height: 1.45),
         ),
       ),

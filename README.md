@@ -8,7 +8,7 @@ ClutterCash is a phone-first Flutter consumer app that turns a shelf, closet, or
 
 - Polished one-action onboarding and camera/gallery capture
 - Honest interactive demo with multi-item value ranges and a big-ticket highlight
-- Live staged-photo analysis through a Cloudflare Worker backed by Gemini
+- Live staged-photo analysis through a Cloudflare Worker backed by OpenAI GPT-5 nano
 - Explicit free-tier privacy warning and consent before uploads
 - Strict scan response validation; malformed results fail instead of inventing values
 - Official active and completed/sold eBay search links plus Facebook Marketplace and Mercari searches
@@ -24,7 +24,7 @@ ClutterCash is a phone-first Flutter consumer app that turns a shelf, closet, or
 
 ## Free-beta privacy and terms
 
-Read the current [Free Beta — Privacy Notice & Terms](docs/BETA_PRIVACY_AND_TERMS.md) before using live photo analysis. It explains the Google Gemini AI processor, local project storage, photo and deletion limits, beta disclaimers, and how to contact support at [cluttercash.help@gmail.com](mailto:cluttercash.help@gmail.com).
+Read the current [Free Beta — Privacy Notice & Terms](docs/BETA_PRIVACY_AND_TERMS.md) before using live photo analysis. It explains the OpenAI API processor, local project storage, photo and deletion limits, beta disclaimers, and how to contact support at [cluttercash.help@gmail.com](mailto:cluttercash.help@gmail.com).
 
 ## Run the demo
 
@@ -37,7 +37,7 @@ Tap **Scan my space → Try the demo room**. The demo is intentionally available
 
 ## Enable protected real-photo analysis
 
-The API keeps the Gemini credential off the client. The local implementation accepts JPEG/PNG/WebP signatures, caps each image at 8 MiB and the streamed multipart envelope at 8 MiB + 64 KiB before parsing, processes images in memory without a Worker disk archive, and returns `Cache-Control: no-store`. The app creates one random local token for three no-registration analyses per browser/device, subject to capacity. The Worker stores hashed access identities and counters; anonymous requests also use a day-scoped connection-address hash/count, a separate daily trial pool and the global reservation pool. These controls limit accepted attempts, not every provider-account charge. Old day counters remain until operator cleanup. Approved device/invite hashes provide separate rolling allowances. A prospective tester can submit an email after using the free allowance; the Worker rate-limits the request and sends it to the operator's private Discord webhook. Two-tap approval enables continued access in the requesting browser. Deployment parity and operational controls remain release gates below.
+The API keeps the OpenAI credential off the client. The local implementation accepts JPEG/PNG/WebP signatures, caps each image at 8 MiB and the streamed multipart envelope at 8 MiB + 64 KiB before parsing, processes images in memory without a Worker disk archive, and returns `Cache-Control: no-store`. The app creates one random local token for three no-registration analyses per browser/device, subject to capacity. The Worker stores hashed access identities and counters; anonymous requests also use a day-scoped connection-address hash/count, a separate daily trial pool and the global reservation pool. These controls limit accepted attempts, not every provider-account charge. Old day counters remain until operator cleanup. Approved device/invite hashes provide separate rolling allowances. A prospective tester can submit an email after using the free allowance; the Worker rate-limits the request and sends it to the operator's private Discord webhook. Two-tap approval enables continued access in the requesting browser. Deployment parity and operational controls remain release gates below.
 
 Follow [`docs/WORKER_BETA_OPERATIONS.md`](docs/WORKER_BETA_OPERATIONS.md) to configure Worker secrets, review and approve requests from Discord, maintain the exceptional manual-code fallback, review limits, verify alerts, and handle incidents.
 
@@ -48,7 +48,7 @@ flutter run -d chrome \
   --dart-define=CLUTTERCASH_API_URL=https://cluttercash-api.zeroleveldev.workers.dev
 ```
 
-Normal in-app approvals require no code: the Worker promotes the requesting device-token hash, and the app privately checks approval with a separate locally stored status token. Existing manual invite codes remain supported for exceptional cross-device help. Do not place `GEMINI_API_KEY`, `ADMIN_API_KEY`, Cloudflare credentials, webhook credentials, browser/request tokens, approval URLs, or plaintext invite codes in Git or Flutter assets. Gemini's free tier is restricted here to staged, non-sensitive photos because free-tier submissions may be reviewed or used to improve Google's products.
+Normal in-app approvals require no code: the Worker promotes the requesting device-token hash, and the app privately checks approval with a separate locally stored status token. Existing manual invite codes remain supported for exceptional cross-device help. Do not place `OPENAI_API_KEY`, `ADMIN_API_KEY`, Cloudflare credentials, webhook credentials, browser/request tokens, approval URLs, or plaintext invite codes in Git or Flutter assets. Restrict uploads to staged, non-sensitive photos; OpenAI states API data is not used for training by default, but default abuse-monitoring logs may retain customer content for up to 30 days.
 
 Marketplace research in the free version opens official user-facing search pages; it does not scrape or ingest marketplace data. Active listings are labeled as asking prices, while eBay completed/sold results are presented as stronger—but still manually verified—evidence. The AI estimate is never presented as a researched comparable sale.
 
@@ -56,7 +56,7 @@ For exact-item refinement, users should photograph the manufacturer/model label 
 
 ## Legacy Express: local development only
 
-`server/` is retained solely for local development; the deployed app continues to use the Gemini Worker. Its entry point binds `127.0.0.1` by default (`HOST=::1` is also supported), rejects other HOST values, and exits with code 1 when `NODE_ENV=production`. Only loopback Host and local HTTP(S) browser origins are accepted; `ALLOWED_ORIGIN` no longer overrides this restriction.
+`server/` is retained solely for local development; the deployed app uses the protected Cloudflare Worker. Its entry point binds `127.0.0.1` by default (`HOST=::1` is also supported), rejects other HOST values, and exits with code 1 when `NODE_ENV=production`. Only loopback Host and local HTTP(S) browser origins are accepted; `ALLOWED_ORIGIN` no longer overrides this restriction.
 
 **Do not publish this service through a tunnel, reverse proxy, port forward, container ingress, or a custom entry point.** Loopback binding is the security boundary, not CORS. It has no equivalent consent/access/quota/budget controls, and local calls with an OpenAI key can incur costs. Production must use the protected Worker; this does not certify the Worker's remaining cost/abuse launch gates. No provider has been changed.
 
@@ -81,7 +81,7 @@ npm test --prefix worker
 - `lib/main.dart` — responsive mobile UI and complete demo flow
 - `server/src/app.js` — legacy **local-development-only**, unmetered Express analyzer seam; not a release backend
 - `server/src/openai-analyzer.js` — server-only image analysis and JSON schema
-- `worker/src/worker.js` — Gemini proxy, consent gate, phone approval, approved device/invite access, durable quota/budget protection, validation, and sanitized alerts
+- `worker/src/worker.js` — OpenAI GPT-5 nano proxy, consent gate, phone approval, approved device/invite access, durable quota/budget protection, validation, and sanitized provider metrics/alerts
 - `test/`, `server/test/`, and `worker/test/` — domain, storage, API, and critical UI-flow tests
 
 ## Product thesis (not market validation)
