@@ -71,7 +71,8 @@ function listing(title, value, overrides = {}) {
 
 test('EBAY-01 enriches a scan with aggregate active fixed-price USD quartiles only', async () => {
   const calls = [];
-  const fetcher = async (url, init = {}) => {
+  async function fetcher(url, init = {}) {
+    assert.equal(this, undefined, 'production fetch must be called without a synthetic receiver');
     calls.push({url: String(url), init});
     if (String(url).includes('openai.com')) return openAIResponse([item(1)]);
     if (String(url).includes('/identity/v1/oauth2/token')) return tokenResponse();

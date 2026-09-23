@@ -639,7 +639,8 @@ async function ebayAccessToken(env, dependencies) {
     catch { throw new Error('eBay OAuth authorization unavailable'); }
     let response;
     try {
-      response = await dependencies.fetcher('https://api.ebay.com/identity/v1/oauth2/token', {
+      const fetcher = dependencies.fetcher;
+      response = await fetcher('https://api.ebay.com/identity/v1/oauth2/token', {
         method: 'POST',
         headers: {
           Authorization: authorization,
@@ -678,7 +679,8 @@ async function ebayActiveComparablePrices(query, env, dependencies) {
   url.searchParams.set('filter', 'buyingOptions:{FIXED_PRICE},priceCurrency:USD');
   let response;
   try {
-    response = await dependencies.fetcher(url.toString(), {
+    const fetcher = dependencies.fetcher;
+    response = await fetcher(url.toString(), {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${token}`,
