@@ -114,6 +114,27 @@ test('EBAY-02 fewer than three strong comparables preserves AI estimates', async
   assert.deepEqual(result.items[0], {...item(1), priceSource: 'ai_estimate', ebayComparableCount: 0});
 });
 
+test('EBAY-02a ignores filler words while rejecting parts, sets, and accessory-only listings', async () => {
+  const focusedItem = item(1, {searchQuery: 'rattan wicker table lamp with shade'});
+  const fetcher = async url => String(url).includes('openai.com') ? openAIResponse([focusedItem])
+    : String(url).includes('/identity/') ? tokenResponse()
+      : browseResponse([
+        listing('Rattan table lamp with beige shade', 30),
+        listing('Wicker table lamp with beige shade', 40),
+        listing('Vintage wicker rattan table lamp', 50),
+        listing('Wicker lamp replacement shade only', 5),
+        listing('Rattan table lamps set of 2 with shades', 90),
+        listing('Wicker table lamp broken for parts', 10),
+      ]);
+  const response = await createHandler({fetcher, providerMetricSender: async () => {}})(scanRequest(), baseEnv);
+  const result = await response.json();
+  assert.equal(response.status, 200);
+  assert.deepEqual(result.items[0], {
+    ...focusedItem, lowValue: 35, typicalValue: 40, highValue: 45,
+    priceSource: 'ebay_active', ebayComparableCount: 3,
+  });
+});
+
 test('EBAY-03 enriches at most ten items with bounded concurrency and one cached OAuth token', async () => {
   let tokenCalls = 0; let activeBrowse = 0; let maxActiveBrowse = 0; let browseCalls = 0;
   const fetcher = async url => {

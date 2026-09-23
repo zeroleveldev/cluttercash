@@ -665,10 +665,24 @@ function strongEbayMatch(query, summary) {
     || !Array.isArray(summary.buyingOptions) || !summary.buyingOptions.includes('FIXED_PRICE')) return false;
   const value = Number(summary.price?.value);
   if (!Number.isFinite(value) || value <= 0 || value > 1000000) return false;
-  const queryTokens = normalizedTokens(query);
+  const queryTokens = informativeEbayTokens(query);
   if (!queryTokens.length) return false;
-  const titleTokens = new Set(normalizedTokens(summary.title));
-  return queryTokens.every(token => titleTokens.has(token));
+  const titleTokens = new Set(informativeEbayTokens(summary.title));
+  const normalizedTitle = normalizedTokens(summary.title).join(' ');
+  const normalizedQuery = normalizedTokens(query).join(' ');
+  const unwanted = /\b(parts?|repair|broken|untested|as is|replacement|manual only|box only|case only|shade only)\b/;
+  if (unwanted.test(normalizedTitle) && !unwanted.test(normalizedQuery)) return false;
+  const grouped = /\b(set|pair|lot|bundle)\b|\bset of \d+\b/;
+  if (grouped.test(normalizedTitle) && !grouped.test(normalizedQuery)) return false;
+  const modelTokens = queryTokens.filter(token => /[a-z]/.test(token) && /\d/.test(token));
+  if (modelTokens.some(token => !titleTokens.has(token))) return false;
+  const matches = queryTokens.filter(token => titleTokens.has(token)).length;
+  return matches >= Math.max(2, Math.ceil(queryTokens.length * 0.6));
+}
+
+function informativeEbayTokens(value) {
+  const filler = new Set(['a', 'an', 'and', 'for', 'in', 'of', 'the', 'to', 'used', 'with']);
+  return normalizedTokens(value).filter(token => !filler.has(token));
 }
 
 function normalizedTokens(value) {
