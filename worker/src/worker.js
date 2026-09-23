@@ -583,7 +583,10 @@ async function enrichWithEbayActivePrices(scan, env, dependencies) {
   await mapWithConcurrency(items, EBAY_ENRICHMENT_CONCURRENCY, async (item, index) => {
     try {
       const prices = await ebayActiveComparablePrices(item.searchQuery, env, dependencies);
-      if (prices.length < 3) return;
+      if (prices.length < 3) {
+        console.info('ebay_enrichment_fallback', 'insufficient_comparables');
+        return;
+      }
       items[index] = {
         ...item,
         lowValue: percentile(prices, 0.25),
@@ -592,7 +595,18 @@ async function enrichWithEbayActivePrices(scan, env, dependencies) {
         priceSource: 'ebay_active',
         ebayComparableCount: prices.length,
       };
-    } catch { /* Active-listing enrichment is optional; retain the AI estimate. */ }
+    } catch (error) {
+      const category = error?.message === 'eBay OAuth unavailable'
+        ? 'oauth_unavailable'
+        : error?.message === 'Invalid eBay OAuth response'
+          ? 'oauth_invalid'
+          : error?.message === 'eBay Browse unavailable'
+            ? 'browse_unavailable'
+            : error?.message === 'Provider response too large'
+              ? 'response_too_large'
+              : 'unexpected';
+      console.info('ebay_enrichment_fallback', category);
+    }
   });
   return {...scan, items};
 }
