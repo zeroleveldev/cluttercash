@@ -16,6 +16,7 @@ class ProjectStore {
     validateItemIds(project.items);
     for (final item in project.items) {
       validateValueRange(item.lowValue, item.typicalValue, item.highValue);
+      validatePriceProvenance(item.priceSource, item.ebayComparableCount);
     }
     final encoded = jsonEncode({
       'id': project.id,
@@ -48,6 +49,7 @@ class ProjectStore {
       validateItemIds(project.items);
       for (final item in project.items) {
         validateValueRange(item.lowValue, item.typicalValue, item.highValue);
+        validatePriceProvenance(item.priceSource, item.ebayComparableCount);
       }
       return project;
     } on Object {
@@ -75,6 +77,8 @@ class ProjectStore {
     'lowValue': item.lowValue,
     'typicalValue': item.typicalValue,
     'highValue': item.highValue,
+    'priceSource': priceSourceWireName(item.priceSource),
+    'ebayComparableCount': item.ebayComparableCount,
     'confidence': item.confidence.name,
     'effort': item.effort.name,
     'route': item.route.name,
@@ -97,6 +101,8 @@ class ProjectStore {
     lowValue: estimateNumber(value['lowValue']),
     typicalValue: estimateNumber(value['typicalValue']),
     highValue: estimateNumber(value['highValue']),
+    priceSource: parsePriceSource(value['priceSource']),
+    ebayComparableCount: _comparableCount(value['ebayComparableCount']),
     confidence: _enum(Confidence.values, value['confidence'], Confidence.low),
     effort: _enum(SaleEffort.values, value['effort'], SaleEffort.medium),
     route: _enum(ItemRoute.values, value['route'], ItemRoute.keep),
@@ -118,6 +124,14 @@ class ProjectStore {
   );
 
   static double _number(dynamic value) => value is num ? value.toDouble() : 0;
+  static int _comparableCount(dynamic value) {
+    if (value == null) return 0;
+    if (value is! int || value < 0) {
+      throw const FormatException('Invalid eBay comparable count.');
+    }
+    return value;
+  }
+
   static T _enum<T extends Enum>(List<T> values, dynamic name, T fallback) =>
       values.where((value) => value.name == name).firstOrNull ?? fallback;
 }

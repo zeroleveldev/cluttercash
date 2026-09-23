@@ -2084,6 +2084,24 @@ class _ItemDetailsSheetState extends State<_ItemDetailsSheet> {
 
   ListingGuide get guide => ListingGuide.forItem(item);
 
+  String get rangeLabel {
+    final range = '\$${item.lowValue.toInt()}–\$${item.highValue.toInt()}';
+    return switch (item.priceSource) {
+      PriceSource.ebayActive => '$range · eBay active asking-price range',
+      PriceSource.userEntered => '$range · user-corrected range',
+      PriceSource.aiEstimate => '$range AI estimate',
+    };
+  }
+
+  String get rangeDisclaimer => switch (item.priceSource) {
+    PriceSource.ebayActive =>
+      'Based on ${item.ebayComparableCount} filtered active listings captured at analysis time. These are current active asking prices—not sold prices, not an appraisal, and not a guaranteed sale price.',
+    PriceSource.userEntered =>
+      'User-entered potential range—not an appraisal or guaranteed sale price.',
+    PriceSource.aiEstimate =>
+      'AI estimate—not an appraisal or live marketplace result.',
+  };
+
   @override
   void initState() {
     super.initState();
@@ -2211,7 +2229,7 @@ class _ItemDetailsSheetState extends State<_ItemDetailsSheet> {
           Text(item.name, style: Theme.of(context).textTheme.headlineLarge),
           const SizedBox(height: 7),
           Text(
-            '\$${item.lowValue.toInt()}–\$${item.highValue.toInt()} AI estimate',
+            rangeLabel,
             style: const TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.w900,
@@ -2219,9 +2237,9 @@ class _ItemDetailsSheetState extends State<_ItemDetailsSheet> {
             ),
           ),
           const SizedBox(height: 5),
-          const Text(
-            'Estimate—not an appraisal or live marketplace result.',
-            style: TextStyle(color: _muted, fontWeight: FontWeight.w600),
+          Text(
+            rangeDisclaimer,
+            style: const TextStyle(color: _muted, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 18),
           _InfoBlock(

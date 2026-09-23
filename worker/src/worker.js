@@ -8,6 +8,10 @@ const MAX_UPLOAD_BYTES = MAX_IMAGE_BYTES + 64 * 1024;
 const SUPPORTED_OPENAI_MODEL = 'gpt-5-nano';
 const MAX_OUTPUT_TOKENS = 4096;
 const MAX_RETURNED_ITEMS = 10;
+const EBAY_ENRICHMENT_CONCURRENCY = 3;
+const MAX_EBAY_RESPONSE_BYTES = 1024 * 1024;
+const MAX_EBAY_DELETION_BYTES = 16 * 1024;
+const EBAY_DELETION_PATH = '/v1/ebay/account-deletion';
 // GPT-5 nano standard pricing: $0.05/M input, $0.005/M cached input,
 // and $0.40/M output. Reserve the entire published 400K input and 128K output
 // windows rather than relying on approximate image-token calculations.
@@ -113,6 +117,9 @@ export function createHandler({
   approvalTokenGenerator = generateApprovalToken,
   requestTokenGenerator = generateApprovalToken,
 } = {}) {
+  let ebayTokenCache = null;
+  let ebayTokenRequest = null;
+
   return async function handle(request, env = {}) {
     const url = new URL(request.url);
     if (url.pathname.startsWith('/v1/subscriber/')) {
@@ -122,6 +129,9 @@ export function createHandler({
       return handleStripeWebhook(request, env, {now, adapterFactory: stripeAdapterFactory});
     }
     if (url.pathname.startsWith('/v1/billing/')) return handleCheckout(request, env, {now, adapterFactory: stripeAdapterFactory});
+    if (url.pathname === EBAY_DELETION_PATH) {
+      return handleEbayAccountDeletion(request, env);
+    }
     const origin = request.headers.get('Origin');
     const isSameOriginApproval = /^\/v1\/access-requests\/[A-Za-z0-9_-]{1,100}\/approve$/.test(url.pathname)
       && origin === url.origin;
@@ -459,6 +469,14 @@ export function createHandler({
       }
       metric.success = true;
       metric.failureCategory = 'none';
+      if (isScan) {
+        validated = await enrichWithEbayActivePrices(validated, env, {
+          fetcher, now, tokenCache: () => ebayTokenCache,
+          setTokenCache: value => { ebayTokenCache = value; },
+          tokenRequest: () => ebayTokenRequest,
+          setTokenRequest: value => { ebayTokenRequest = value; },
+        });
+      }
       return json(validated, 200, cors);
     } catch (error) {
       metric.requestId = safeProviderRequestId(error?.requestId) || metric.requestId;
@@ -476,6 +494,211 @@ export function createHandler({
       try { await providerMetricSender(metric); } catch { /* Metrics never alter analysis. */ }
     }
   };
+}
+
+async function handleEbayAccountDeletion(request, env) {
+  const url = new URL(request.url);
+  const configuredEndpoint = typeof env.EBAY_DELETION_ENDPOINT_URL === 'string'
+    ? env.EBAY_DELETION_ENDPOINT_URL
+    : '';
+  const verificationToken = typeof env.EBAY_DELETION_VERIFICATION_TOKEN === 'string'
+    ? env.EBAY_DELETION_VERIFICATION_TOKEN
+    : '';
+  const requestEndpoint = `${url.origin}${url.pathname}`;
+  const configured = configuredEndpoint === requestEndpoint
+    && configuredEndpoint.startsWith('https://')
+    && verificationToken.length >= 32
+    && verificationToken.length <= 80;
+
+  if (request.method === 'GET') {
+    const challenge = url.searchParams.get('challenge_code') || '';
+    if (!configured || !/^[A-Za-z0-9_-]{1,128}$/.test(challenge)
+      || [...url.searchParams.keys()].some(key => key !== 'challenge_code')
+      || url.searchParams.getAll('challenge_code').length !== 1) {
+      return json({error: 'Invalid eBay deletion challenge.'}, 400);
+    }
+    return json({
+      challengeResponse: await sha256Hex(challenge + verificationToken + configuredEndpoint),
+    });
+  }
+
+  if (request.method === 'POST') {
+    if (!configured || !/^application\/json(?:\s*;|$)/i.test(request.headers.get('Content-Type') || '')) {
+      return json({error: 'Invalid eBay deletion notification.'}, 400);
+    }
+    let text;
+    try {
+      text = await readBoundedRequestText(request, MAX_EBAY_DELETION_BYTES);
+    } catch (error) {
+      return json({error: 'Invalid eBay deletion notification.'}, error?.tooLarge ? 413 : 400);
+    }
+    let value;
+    try { value = JSON.parse(text); }
+    catch { return json({error: 'Invalid eBay deletion notification.'}, 400); }
+    if (!value || Array.isArray(value) || typeof value !== 'object'
+      || !value.metadata || Array.isArray(value.metadata)
+      || value.metadata.topic !== 'MARKETPLACE_ACCOUNT_DELETION'
+      || !value.notification || Array.isArray(value.notification) || typeof value.notification !== 'object') {
+      return json({error: 'Invalid eBay deletion notification.'}, 400);
+    }
+    return new Response(null, {status: 204, headers: {
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',
+      'Referrer-Policy': 'no-referrer',
+    }});
+  }
+
+  return json({error: 'Method not allowed.'}, 405);
+}
+
+async function readBoundedRequestText(request, maximumBytes) {
+  if (Number(request.headers.get('Content-Length')) > maximumBytes) {
+    const error = new Error('Body too large'); error.tooLarge = true; throw error;
+  }
+  const reader = request.body?.getReader();
+  if (!reader) throw new Error('Missing body');
+  const chunks = [];
+  let size = 0;
+  try {
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > maximumBytes) {
+        await reader.cancel();
+        const error = new Error('Body too large'); error.tooLarge = true; throw error;
+      }
+      chunks.push(value);
+    }
+  } finally { reader.releaseLock(); }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  return new TextDecoder().decode(bytes);
+}
+
+async function enrichWithEbayActivePrices(scan, env, dependencies) {
+  const items = scan.items.map(item => ({...item, priceSource: 'ai_estimate', ebayComparableCount: 0}));
+  if (!ebayConfigurationValid(env)) return {...scan, items};
+  await mapWithConcurrency(items, EBAY_ENRICHMENT_CONCURRENCY, async (item, index) => {
+    try {
+      const prices = await ebayActiveComparablePrices(item.searchQuery, env, dependencies);
+      if (prices.length < 3) return;
+      items[index] = {
+        ...item,
+        lowValue: percentile(prices, 0.25),
+        typicalValue: percentile(prices, 0.50),
+        highValue: percentile(prices, 0.75),
+        priceSource: 'ebay_active',
+        ebayComparableCount: prices.length,
+      };
+    } catch { /* Active-listing enrichment is optional; retain the AI estimate. */ }
+  });
+  return {...scan, items};
+}
+
+function ebayConfigurationValid(env) {
+  return typeof env.EBAY_CLIENT_ID === 'string' && env.EBAY_CLIENT_ID.length > 0
+    && typeof env.EBAY_CLIENT_SECRET === 'string' && env.EBAY_CLIENT_SECRET.length > 0
+    && env.EBAY_MARKETPLACE_ID === 'EBAY_US';
+}
+
+async function ebayAccessToken(env, dependencies) {
+  const timestamp = dependencies.now();
+  const cached = dependencies.tokenCache();
+  if (cached?.expiresAt > timestamp + 60000) return cached.value;
+  const pending = dependencies.tokenRequest();
+  if (pending) return pending;
+  const request = (async () => {
+    const response = await dependencies.fetcher('https://api.ebay.com/identity/v1/oauth2/token', {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${btoa(`${env.EBAY_CLIENT_ID}:${env.EBAY_CLIENT_SECRET}`)}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        grant_type: 'client_credentials',
+        scope: 'https://api.ebay.com/oauth/api_scope',
+      }).toString(),
+    });
+    if (!response.ok) throw new Error('eBay OAuth unavailable');
+    const body = JSON.parse(await boundedResponseText(response, 16 * 1024));
+    const lifetimeSeconds = Number(body?.expires_in);
+    if (typeof body?.access_token !== 'string' || !body.access_token
+      || body.access_token.length > 4096 || !Number.isFinite(lifetimeSeconds) || lifetimeSeconds <= 60) {
+      throw new Error('Invalid eBay OAuth response');
+    }
+    dependencies.setTokenCache({
+      value: body.access_token,
+      expiresAt: timestamp + Math.min(lifetimeSeconds, 86400) * 1000,
+    });
+    return body.access_token;
+  })();
+  dependencies.setTokenRequest(request);
+  try { return await request; }
+  finally { dependencies.setTokenRequest(null); }
+}
+
+async function ebayActiveComparablePrices(query, env, dependencies) {
+  if (typeof query !== 'string' || !query.trim()) return [];
+  const token = await ebayAccessToken(env, dependencies);
+  const url = new URL('https://api.ebay.com/buy/browse/v1/item_summary/search');
+  url.searchParams.set('q', query.trim().slice(0, 120));
+  url.searchParams.set('limit', '50');
+  url.searchParams.set('filter', 'buyingOptions:{FIXED_PRICE},priceCurrency:USD');
+  const response = await dependencies.fetcher(url.toString(), {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'X-EBAY-C-MARKETPLACE-ID': env.EBAY_MARKETPLACE_ID,
+    },
+  });
+  if (!response.ok) throw new Error('eBay Browse unavailable');
+  const body = JSON.parse(await boundedResponseText(response, MAX_EBAY_RESPONSE_BYTES));
+  const summaries = Array.isArray(body?.itemSummaries) ? body.itemSummaries.slice(0, 50) : [];
+  return summaries.filter(summary => strongEbayMatch(query, summary)).map(summary => Number(summary.price.value));
+}
+
+function strongEbayMatch(query, summary) {
+  if (!summary || typeof summary.title !== 'string'
+    || summary.price?.currency !== 'USD'
+    || !Array.isArray(summary.buyingOptions) || !summary.buyingOptions.includes('FIXED_PRICE')) return false;
+  const value = Number(summary.price?.value);
+  if (!Number.isFinite(value) || value <= 0 || value > 1000000) return false;
+  const queryTokens = normalizedTokens(query);
+  if (!queryTokens.length) return false;
+  const titleTokens = new Set(normalizedTokens(summary.title));
+  return queryTokens.every(token => titleTokens.has(token));
+}
+
+function normalizedTokens(value) {
+  return String(value).toLowerCase().match(/[a-z0-9]+/g) || [];
+}
+
+function percentile(values, fraction) {
+  const sorted = [...values].sort((left, right) => left - right);
+  const position = (sorted.length - 1) * fraction;
+  const lower = Math.floor(position);
+  const upper = Math.ceil(position);
+  const value = sorted[lower] + (sorted[upper] - sorted[lower]) * (position - lower);
+  return Math.round(value * 100) / 100;
+}
+
+async function mapWithConcurrency(values, limit, operation) {
+  let next = 0;
+  const worker = async () => {
+    while (next < values.length) {
+      const index = next++;
+      await operation(values[index], index);
+    }
+  };
+  await Promise.all(Array.from({length: Math.min(limit, values.length)}, worker));
+}
+
+async function boundedResponseText(response, maximumBytes) {
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.byteLength > maximumBytes) throw new Error('Provider response too large');
+  return new TextDecoder().decode(bytes);
 }
 
 // Race the complete body read, not only receipt of headers. Abort transport

@@ -296,7 +296,10 @@ void main() {
     expect(find.text('Privacy & beta terms'), findsOneWidget);
     expect(find.text('Free beta'), findsOneWidget);
     expect(find.textContaining('Effective September 10, 2026'), findsOneWidget);
-    expect(find.textContaining('Crop or cover serials before uploading'), findsOneWidget);
+    expect(
+      find.textContaining('Crop or cover serials before uploading'),
+      findsOneWidget,
+    );
     expect(find.textContaining('cannot guarantee exclusion'), findsOneWidget);
     await tester.drag(find.byType(ListView), const Offset(0, -1200));
     await tester.pumpAndSettle();
@@ -389,7 +392,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Photograph the model label'), findsOneWidget);
       expect(find.textContaining('unique serial number'), findsOneWidget);
-      expect(find.textContaining('Crop or cover serials before uploading'), findsOneWidget);
+      expect(
+        find.textContaining('Crop or cover serials before uploading'),
+        findsOneWidget,
+      );
       expect(find.textContaining('cannot guarantee'), findsOneWidget);
     },
   );
@@ -500,7 +506,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Canon AE-1 Program camera'), findsAtLeastNWidgets(1));
-    expect(find.text(r'$180–$320 AI estimate'), findsOneWidget);
+    expect(find.text(r'$180–$320 · user-corrected range'), findsOneWidget);
+    expect(find.textContaining('User-entered potential range'), findsOneWidget);
     expect(
       telemetry.events.map((entry) => entry.event),
       contains(TelemetryEvent.itemCorrected),

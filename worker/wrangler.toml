@@ -19,6 +19,8 @@ SUBSCRIBER_EMAIL_ENABLED = "true"
 SUBSCRIBER_EMAIL_PROVIDER = "resend"
 SUBSCRIBER_EMAIL_FROM = "signin@auth.cluttercash.app"
 SUBSCRIBER_EMAIL_TRACKING_DISABLED = "true"
+EBAY_MARKETPLACE_ID = "EBAY_US"
+EBAY_DELETION_ENDPOINT_URL = "https://cluttercash-api.zeroleveldev.workers.dev/v1/ebay/account-deletion"
 
 [[durable_objects.bindings]]
 name = "BETA_USAGE_LIMITER"

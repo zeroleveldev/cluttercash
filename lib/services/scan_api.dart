@@ -198,8 +198,42 @@ class ScanApi {
       );
     }
     final exactName = (decoded['exactName'] as String).trim();
+    final nextName = exactName.isEmpty ? item.name : exactName;
+    final aggregateFields = [
+      'lowValue',
+      'typicalValue',
+      'highValue',
+      'priceSource',
+      'ebayComparableCount',
+    ];
+    final hasAggregate = aggregateFields.any(decoded.containsKey);
+    if (hasAggregate && !aggregateFields.every(decoded.containsKey)) {
+      throw const FormatException('Label price evidence was incomplete.');
+    }
+    final priceSource = hasAggregate
+        ? parsePriceSource(decoded['priceSource'], allowAbsent: false)
+        : (nextName == item.name ? item.priceSource : PriceSource.aiEstimate);
+    final comparableCount = hasAggregate
+        ? _comparableCount(decoded['ebayComparableCount'])
+        : (nextName == item.name ? item.ebayComparableCount : 0);
+    final lowValue = hasAggregate
+        ? estimateNumber(decoded['lowValue'])
+        : item.lowValue;
+    final typicalValue = hasAggregate
+        ? estimateNumber(decoded['typicalValue'])
+        : item.typicalValue;
+    final highValue = hasAggregate
+        ? estimateNumber(decoded['highValue'])
+        : item.highValue;
+    validateValueRange(lowValue, typicalValue, highValue);
+    validatePriceProvenance(priceSource, comparableCount);
     final updated = item.copyWith(
-      name: exactName.isEmpty ? item.name : exactName,
+      name: nextName,
+      lowValue: lowValue,
+      typicalValue: typicalValue,
+      highValue: highValue,
+      priceSource: priceSource,
+      ebayComparableCount: comparableCount,
       confidence: _confidence(decoded['confidence']),
       searchQuery: decoded['searchQuery'] as String?,
       marketplace: _marketplace(decoded['marketplace']),
@@ -235,33 +269,39 @@ class ScanApi {
       final box = raw['box'] is Map<String, dynamic>
           ? raw['box'] as Map<String, dynamic>
           : const <String, dynamic>{};
-      items.add(
-        ClutterItem(
-          id: validatedItemId(raw['id'] ?? 'item-${items.length + 1}'),
-          name: raw['name'] as String,
-          category: '${raw['category'] ?? 'Other'}',
-          lowValue: estimateNumber(raw['lowValue']),
-          typicalValue: estimateNumber(raw['typicalValue']),
-          highValue: estimateNumber(raw['highValue']),
-          confidence: _confidence(raw['confidence']),
-          effort: _effort(raw['effort']),
-          route: _route(raw['route']),
-          reason: '${raw['reason'] ?? ''}',
-          searchQuery: '${raw['searchQuery'] ?? ''}',
-          marketplace: _marketplace(raw['marketplace']),
-          marketplaceReason: '${raw['marketplaceReason'] ?? ''}',
-
-          boxLeft: _number(box['left']),
-          boxTop: _number(box['top']),
-          boxWidth: _number(box['width']),
-          boxHeight: _number(box['height']),
-        ),
+      final priceSource = parsePriceSource(raw['priceSource']);
+      final comparableCount = _comparableCount(
+        raw['ebayComparableCount'],
+        allowAbsent: true,
       );
+      final item = ClutterItem(
+        id: validatedItemId(raw['id'] ?? 'item-${items.length + 1}'),
+        name: raw['name'] as String,
+        category: '${raw['category'] ?? 'Other'}',
+        lowValue: estimateNumber(raw['lowValue']),
+        typicalValue: estimateNumber(raw['typicalValue']),
+        highValue: estimateNumber(raw['highValue']),
+        priceSource: priceSource,
+        ebayComparableCount: comparableCount,
+        confidence: _confidence(raw['confidence']),
+        effort: _effort(raw['effort']),
+        route: _route(raw['route']),
+        reason: '${raw['reason'] ?? ''}',
+        searchQuery: '${raw['searchQuery'] ?? ''}',
+        marketplace: _marketplace(raw['marketplace']),
+        marketplaceReason: '${raw['marketplaceReason'] ?? ''}',
+
+        boxLeft: _number(box['left']),
+        boxTop: _number(box['top']),
+        boxWidth: _number(box['width']),
+        boxHeight: _number(box['height']),
+      );
+      validateValueRange(item.lowValue, item.typicalValue, item.highValue);
+      validatePriceProvenance(priceSource, comparableCount);
+      items.add(item);
     }
     validateItemIds(items);
-    for (final item in items) {
-      validateValueRange(item.lowValue, item.typicalValue, item.highValue);
-    }
+
     return ScanResult(
       id: 'scan-${DateTime.now().millisecondsSinceEpoch}',
       projectId: projectId,
@@ -271,6 +311,14 @@ class ScanApi {
   }
 
   static double _number(dynamic value) => value is num ? value.toDouble() : 0;
+  static int _comparableCount(dynamic value, {bool allowAbsent = false}) {
+    if (value == null && allowAbsent) return 0;
+    if (value is! int || value < 0) {
+      throw const FormatException('Invalid eBay comparable count.');
+    }
+    return value;
+  }
+
   static Confidence _confidence(dynamic value) =>
       Confidence.values.where((e) => e.name == value).firstOrNull ??
       Confidence.low;
