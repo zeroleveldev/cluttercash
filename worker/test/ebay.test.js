@@ -101,6 +101,7 @@ test('EBAY-01 enriches a scan with aggregate active fixed-price USD quartiles on
   assert.equal(browseUrl.searchParams.get('q'), 'Canon AE-1 camera');
   assert.match(browseUrl.searchParams.get('filter'), /buyingOptions:\{FIXED_PRICE\}/);
   assert.match(browseUrl.searchParams.get('filter'), /priceCurrency:USD/);
+  assert.match(browseUrl.searchParams.get('filter'), /conditions:\{USED\}/);
   assert.equal(browseCall.init.headers.Authorization, 'Bearer synthetic-access-token');
   assert.equal(browseCall.init.headers['X-EBAY-C-MARKETPLACE-ID'], 'EBAY_US');
 });
@@ -124,7 +125,7 @@ test('EBAY-02a ignores filler words while rejecting parts, sets, and accessory-o
         listing('Wicker table lamp with beige shade', 40),
         listing('Vintage wicker rattan table lamp', 50),
         listing('Wicker lamp replacement shade only', 5),
-        listing('Rattan table lamps set of 2 with shades', 90),
+        listing('4PCS Rattan table lamps with shades', 90),
         listing('Wicker table lamp broken for parts', 10),
       ]);
   const response = await createHandler({fetcher, providerMetricSender: async () => {}})(scanRequest(), baseEnv);

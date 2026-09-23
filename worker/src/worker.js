@@ -676,7 +676,7 @@ async function ebayActiveComparablePrices(query, env, dependencies) {
   const url = new URL('https://api.ebay.com/buy/browse/v1/item_summary/search');
   url.searchParams.set('q', query.trim().slice(0, 120));
   url.searchParams.set('limit', '50');
-  url.searchParams.set('filter', 'buyingOptions:{FIXED_PRICE},priceCurrency:USD');
+  url.searchParams.set('filter', 'buyingOptions:{FIXED_PRICE},priceCurrency:USD,conditions:{USED}');
   let response;
   try {
     const fetcher = dependencies.fetcher;
@@ -707,8 +707,12 @@ function strongEbayMatch(query, summary) {
   const normalizedQuery = normalizedTokens(query).join(' ');
   const unwanted = /\b(parts?|repair|broken|untested|as is|replacement|manual only|box only|case only|shade only)\b/;
   if (unwanted.test(normalizedTitle) && !unwanted.test(normalizedQuery)) return false;
-  const grouped = /\b(set|pair|lot|bundle)\b|\bset of \d+\b/;
+  const grouped = /\b(set|pair|lot|bundle)\b|\bset of \d+\b|\b\d+\s*(?:pc|pcs|piece|pieces)\b/;
   if (grouped.test(normalizedTitle) && !grouped.test(normalizedQuery)) return false;
+  for (const singular of ['chair', 'lamp', 'table', 'stool']) {
+    if (queryTokens.includes(singular) && !queryTokens.includes(`${singular}s`)
+      && titleTokens.has(`${singular}s`) && !titleTokens.has(singular)) return false;
+  }
   const modelTokens = queryTokens.filter(token => /[a-z]/.test(token) && /\d/.test(token));
   if (modelTokens.some(token => !titleTokens.has(token))) return false;
   const matches = queryTokens.filter(token => titleTokens.has(token)).length;
@@ -716,7 +720,10 @@ function strongEbayMatch(query, summary) {
 }
 
 function informativeEbayTokens(value) {
-  const filler = new Set(['a', 'an', 'and', 'for', 'in', 'of', 'the', 'to', 'used', 'with']);
+  const filler = new Set([
+    'a', 'an', 'and', 'for', 'in', 'listing', 'listings', 'of', 'photo', 'sale',
+    'search', 'stock', 'the', 'to', 'used', 'with',
+  ]);
   return normalizedTokens(value).filter(token => !filler.has(token));
 }
 
