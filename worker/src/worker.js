@@ -596,8 +596,10 @@ async function enrichWithEbayActivePrices(scan, env, dependencies) {
         ebayComparableCount: prices.length,
       };
     } catch (error) {
-      const category = error?.message === 'eBay OAuth transport unavailable'
-        ? 'oauth_transport'
+      const category = error?.message === 'eBay OAuth authorization unavailable'
+        ? 'oauth_authorization'
+        : error?.message === 'eBay OAuth transport unavailable'
+          ? 'oauth_transport'
         : error?.message === 'eBay Browse transport unavailable'
           ? 'browse_transport'
           : error?.message === 'eBay OAuth unavailable'
@@ -632,12 +634,15 @@ async function ebayAccessToken(env, dependencies) {
   const pending = dependencies.tokenRequest();
   if (pending) return pending;
   const request = (async () => {
+    let authorization;
+    try { authorization = `Basic ${btoa(`${env.EBAY_CLIENT_ID}:${env.EBAY_CLIENT_SECRET}`)}`; }
+    catch { throw new Error('eBay OAuth authorization unavailable'); }
     let response;
     try {
       response = await dependencies.fetcher('https://api.ebay.com/identity/v1/oauth2/token', {
         method: 'POST',
         headers: {
-          Authorization: `Basic ${btoa(`${env.EBAY_CLIENT_ID}:${env.EBAY_CLIENT_SECRET}`)}`,
+          Authorization: authorization,
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: new URLSearchParams({
