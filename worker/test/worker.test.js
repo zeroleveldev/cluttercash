@@ -83,6 +83,19 @@ for (const device of [false,true]) test(`CC-14 revoked registered ${device?'devi
   assert.equal((await handler(revokeRequest(hash),local)).status,200,'idempotent');
   assert.equal((await handler(telemetryRequest({event:'project_created'}),local)).status,202,'other credentials survive');
 });
+test('CC-02 owner code is authorized when it exists only in the owner allow-list', async () => {
+  const ownerCode = 'owner-only-code';
+  const ownerHash = await testSha256Hex(ownerCode);
+  const request = imageRequest();
+  request.headers.set('X-ClutterCash-Invite', ownerCode);
+  const response = await createHandler({fetcher: quotaProvider})(request, {
+    ...memoryDurableEnv(),
+    BETA_INVITE_CODE_HASHES: JSON.stringify(['a'.repeat(64)]),
+    BETA_OWNER_INVITE_CODE_HASHES: JSON.stringify([ownerHash]),
+  });
+  assert.equal(response.status, 200);
+});
+
 test('CC-14 static and owner hashes require explicit removal before durable revocation',async()=>{
  const local=memoryDurableEnv(); const handler=createHandler();const hash=await testSha256Hex('test-invite');
  assert.equal((await handler(revokeRequest(hash),local)).status,409);

@@ -861,7 +861,7 @@ async function authorizedInviteHash(request, env) {
     } catch {
       allowed = [];
     }
-    if (allowed.includes(inviteHash)) return inviteHash;
+    if (allowed.includes(inviteHash) || ownerInviteAllowed(env, inviteHash)) return inviteHash;
     if ((await registeredInviteAllowed(env, inviteHash))?.allowed === true) return inviteHash;
     return null;
   }
