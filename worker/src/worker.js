@@ -37,7 +37,7 @@ const TELEMETRY_EVENTS = new Set([
 ]);
 const TELEMETRY_FAILURE_CODES = new Set(['api', 'network', 'unknown', 'framework', 'async']);
 
-const prompt = `Analyze this staged, non-sensitive household clutter photo for decluttering triage. Return at most 10 clearly visible objects, prioritizing items that may have meaningful resale value and omitting ordinary low-value clutter unless it should be bundled or donated. Be conservative. Resale values are broad US-dollar hypotheses, not live marketplace data or appraisals. Never infer a luxury brand, authenticity, exact model, material, dimensions, condition, or included accessories unless visible. High-value or uncertain objects must say what label, model, or condition photo would improve confidence. For each item, create a concise searchQuery for comparable listings without adding facts that are not visible, plus a marketplace recommendation chosen from ebay, facebookMarketplace, mercari, localPickup, consignment, or donate with a reason. Do not create listing copy or claim that live listings or completed sales were researched. Bounding boxes use normalized 0..1 coordinates. Return only the requested JSON schema.`;
+const prompt = `Analyze this staged, non-sensitive household clutter photo for decluttering triage. Return at most 10 clearly visible objects, prioritizing items that may have meaningful resale value and omitting ordinary low-value clutter unless it should be bundled or donated. Treat each independently removable, materially distinct visible object as its own item where practical. Furniture must not absorb books, baskets, electronics, or décor sitting on or inside it. Bundle only genuinely similar low-value objects, never unlike objects merely sharing a location. Be conservative and optimize for a realistic quick sale rather than an optimistic asking price. Resale values are broad US-dollar hypotheses, not live marketplace data or appraisals. Never infer a luxury brand, authenticity, exact model, material, dimensions, condition, or included accessories unless visible. When a commodity electronic is visibly dated or its maker, model, size, and features cannot be confirmed—such as an older non-smart TV, monitor, printer, DVD player, or basic stereo—do not compare it with modern premium products. If it plausibly sells, use a conservative quick local sale range, usually $5–$50, and recommend localPickup; otherwise recommend donate or recycle with a zero range. Exact visibly identified collectible or premium models are exempt from this conservative default. Give a complete recommendation from this photo. A label or condition follow-up may be mentioned only as an optional way to improve confidence, never as a required step. Donate and recycle routes must use 0 for lowValue, typicalValue, and highValue. For each item, create a concise searchQuery for comparable listings without adding facts that are not visible, plus a marketplace recommendation chosen from ebay, facebookMarketplace, mercari, localPickup, consignment, or donate with a reason. Use ebay only when visible evidence supports a focused like-for-like identity; bulky generic goods should normally use localPickup or donate. Do not create listing copy or claim that live listings or completed sales were researched. Bounding boxes use normalized 0..1 coordinates. Return only the requested JSON schema.`;
 
 const responseSchema = {
   type: 'object',
@@ -581,6 +581,7 @@ async function enrichWithEbayActivePrices(scan, env, dependencies) {
   const items = scan.items.map(item => ({...item, priceSource: 'ai_estimate', ebayComparableCount: 0}));
   if (!ebayConfigurationValid(env)) return {...scan, items};
   await mapWithConcurrency(items, EBAY_ENRICHMENT_CONCURRENCY, async (item, index) => {
+    if (!shouldEnrichWithEbay(item)) return;
     try {
       const prices = await ebayActiveComparablePrices(item.searchQuery, env, dependencies);
       if (prices.length < 3) {
@@ -619,6 +620,16 @@ async function enrichWithEbayActivePrices(scan, env, dependencies) {
     }
   });
   return {...scan, items};
+}
+
+function shouldEnrichWithEbay(item) {
+  if (!['sell', 'bundle'].includes(item.route) || item.marketplace !== 'ebay') return false;
+  const identity = `${item.name} ${item.category} ${item.searchQuery}`.toLowerCase();
+  const commodityElectronic = /\b(?:tv|television|monitor|printer|dvd(?:\s+player)?|blu[ -]?ray player|stereo|receiver)\b/.test(identity);
+  if (!commodityElectronic) return true;
+  return normalizedTokens(item.searchQuery).some(token => token.length >= 4
+    && /[a-z]/.test(token) && /\d/.test(token)
+    && !/^(?:4k|8k|720p|1080p)$/.test(token));
 }
 
 function ebayConfigurationValid(env) {
@@ -705,7 +716,7 @@ function strongEbayMatch(query, summary) {
   const titleTokens = new Set(informativeEbayTokens(summary.title));
   const normalizedTitle = normalizedTokens(summary.title).join(' ');
   const normalizedQuery = normalizedTokens(query).join(' ');
-  const unwanted = /\b(parts?|repair|broken|untested|as is|replacement|manual only|box only|case only|shade only)\b/;
+  const unwanted = /\b(parts?|repair|broken|untested|as is|replacement|manual only|box only|case only|shade only|remote only|stand only|legs only|power board|main board|replacement screen)\b/;
   if (unwanted.test(normalizedTitle) && !unwanted.test(normalizedQuery)) return false;
   const grouped = /\b(set|pair|lot|bundle)\b|\bset of \d+\b|\b\d+\s*(?:pc|pcs|piece|pieces)\b/;
   if (grouped.test(normalizedTitle) && !grouped.test(normalizedQuery)) return false;
@@ -715,6 +726,8 @@ function strongEbayMatch(query, summary) {
   }
   const modelTokens = queryTokens.filter(token => /[a-z]/.test(token) && /\d/.test(token));
   if (modelTokens.some(token => !titleTokens.has(token))) return false;
+  const numericTokens = queryTokens.filter(token => /^\d+$/.test(token));
+  if (numericTokens.some(token => !titleTokens.has(token))) return false;
   const matches = queryTokens.filter(token => titleTokens.has(token)).length;
   return matches >= Math.max(2, Math.ceil(queryTokens.length * 0.6));
 }
@@ -1560,20 +1573,23 @@ function validateScan(value) {
     const typical = price(item.typicalValue);
     const high = price(item.highValue);
     if (low > typical || typical > high) throw new Error('Invalid potential value range');
+    const route = routes.has(item.route) ? item.route : 'keep';
+    const hasNoSellingProceeds = route === 'donate' || route === 'recycle';
     return {
       id,
       name: item.name.slice(0, 100),
       category: String(item.category || 'Other').slice(0, 40),
-      lowValue: Math.min(low, typical, high),
-      typicalValue: typical,
-      highValue: Math.max(low, typical, high),
+      lowValue: hasNoSellingProceeds ? 0 : Math.min(low, typical, high),
+      typicalValue: hasNoSellingProceeds ? 0 : typical,
+      highValue: hasNoSellingProceeds ? 0 : Math.max(low, typical, high),
       confidence: levels.has(item.confidence) ? item.confidence : 'low',
       effort: levels.has(item.effort) ? item.effort : 'medium',
-      route: routes.has(item.route) ? item.route : 'keep',
+      route,
       reason: String(item.reason || '').slice(0, 240),
 
       searchQuery: String(item.searchQuery || item.name).slice(0, 120),
-      marketplace: marketplaces.has(item.marketplace) ? item.marketplace : 'localPickup',
+      marketplace: route === 'donate' ? 'donate'
+        : marketplaces.has(item.marketplace) ? item.marketplace : 'localPickup',
       marketplaceReason: String(item.marketplaceReason || '').slice(0, 240),
 
       box: {

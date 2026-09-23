@@ -137,6 +137,68 @@ test('EBAY-02a ignores filler words while rejecting parts, sets, and accessory-o
   });
 });
 
+test('EBAY-02b skips donate and non-eBay marketplace items', async () => {
+  let marketplaceCalls = 0;
+  const donated = item(1, {name:'Baby swing chair',route:'donate',marketplace:'donate',searchQuery:'used baby swing chair'});
+  const local = item(2, {name:'Bookshelf',route:'sell',marketplace:'localPickup',searchQuery:'wood bookshelf'});
+  const fetcher = async url => {
+    if (String(url).includes('openai.com')) return openAIResponse([donated,local]);
+    marketplaceCalls++;
+    return tokenResponse();
+  };
+  const response = await createHandler({fetcher, providerMetricSender: async () => {}})(scanRequest(), baseEnv);
+  assert.equal(response.status,200);
+  const result=await response.json();
+  assert.equal(marketplaceCalls,0);
+  assert.deepEqual(result.items.map(value=>[value.priceSource,value.ebayComparableCount]),[['ai_estimate',0],['ai_estimate',0]]);
+  assert.deepEqual([result.items[0].lowValue,result.items[0].typicalValue,result.items[0].highValue],[0,0,0]);
+});
+
+test('EBAY-02c generic unidentified television is not enriched', async () => {
+  let marketplaceCalls=0;
+  const television=item(1,{name:'Older flat-screen television',category:'Electronics',confidence:'low',searchQuery:'old flat screen TV'});
+  const fetcher=async url=>{
+    if(String(url).includes('openai.com')) return openAIResponse([television]);
+    marketplaceCalls++;
+    return String(url).includes('/identity/')?tokenResponse():browseResponse([
+      listing('Samsung 55 inch smart TV',300),listing('LG 4K smart TV',400),listing('Sony OLED TV',500),
+    ]);
+  };
+  const response=await createHandler({fetcher,providerMetricSender:async()=>{}})(scanRequest(),baseEnv);
+  const result=await response.json();
+  assert.equal(response.status,200);
+  assert.equal(marketplaceCalls,0);
+  assert.deepEqual(result.items[0],{...television,priceSource:'ai_estimate',ebayComparableCount:0});
+});
+
+test('EBAY-02d exact-model television remains eligible', async () => {
+  const television=item(1,{name:'Samsung UN55NU6900 television',category:'Electronics',searchQuery:'Samsung UN55NU6900 55 inch TV'});
+  const fetcher=async url=>String(url).includes('openai.com')?openAIResponse([television])
+    :String(url).includes('/identity/')?tokenResponse():browseResponse([
+      listing('Samsung UN55NU6900 55 inch TV',80),listing('Samsung UN55NU6900 55 inch television',100),listing('Samsung UN55NU6900 55 TV tested',120),
+    ]);
+  const response=await createHandler({fetcher,providerMetricSender:async()=>{}})(scanRequest(),baseEnv);
+  const result=await response.json();
+  assert.equal(response.status,200);
+  assert.equal(result.items[0].priceSource,'ebay_active');
+  assert.equal(result.items[0].ebayComparableCount,3);
+  assert.deepEqual([result.items[0].lowValue,result.items[0].typicalValue,result.items[0].highValue],[90,100,110]);
+});
+
+test('EBAY-02e rejects wrong-size and accessory-only electronics listings', async () => {
+  const television=item(1,{name:'Samsung UN55NU6900 television',category:'Electronics',searchQuery:'Samsung UN55NU6900 55 inch TV'});
+  const fetcher=async url=>String(url).includes('openai.com')?openAIResponse([television])
+    :String(url).includes('/identity/')?tokenResponse():browseResponse([
+      listing('Samsung UN55NU6900 55 inch TV',80),listing('Samsung UN55NU6900 55 inch television tested',100),
+      listing('Samsung UN55NU6900 65 inch TV',200),listing('Samsung UN55NU6900 remote only',15),
+      listing('Samsung UN55NU6900 stand only',20),listing('Samsung UN55NU6900 power board',25),
+    ]);
+  const response=await createHandler({fetcher,providerMetricSender:async()=>{}})(scanRequest(),baseEnv);
+  const result=await response.json();
+  assert.equal(response.status,200);
+  assert.deepEqual(result.items[0],{...television,priceSource:'ai_estimate',ebayComparableCount:0});
+});
+
 test('EBAY-03 enriches at most ten items with bounded concurrency and one cached OAuth token', async () => {
   let tokenCalls = 0; let activeBrowse = 0; let maxActiveBrowse = 0; let browseCalls = 0;
   const fetcher = async url => {

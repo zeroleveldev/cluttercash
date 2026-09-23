@@ -178,7 +178,15 @@ for (const route of ['scans', 'items/identify']) test(`OPENAI-01 ${route} uses b
   assert.equal(payload.text.format.type,'json_schema');
   assert.equal(payload.text.format.strict,true);
   assertClosedSchema(payload.text.format.schema);
-  if (route === 'scans') assert.equal(payload.text.format.schema.properties.items.maxItems,10);
+  if (route === 'scans') {
+    assert.equal(payload.text.format.schema.properties.items.maxItems,10);
+    const instructions = payload.input[0].content[0].text;
+    assert.match(instructions, /independently removable/i);
+    assert.match(instructions, /furniture.*books.*baskets.*electronics.*d[eé]cor/i);
+    assert.match(instructions, /older non-smart TV/i);
+    assert.match(instructions, /quick local sale/i);
+    assert.match(instructions, /follow-up.*optional/i);
+  }
   assert.equal(payload.contents,undefined);
   assert.equal(payload.generationConfig,undefined);
 });
@@ -229,6 +237,23 @@ test('OPENAI-05 scan validator returns at most ten objects', async () => {
   const response=await createHandler({fetcher:async()=>providerResponse({sceneSummary:'Shelf',items})})(imageRequest(),env);
   assert.equal(response.status,200);
   assert.equal((await response.json()).items.length,10);
+});
+
+test('SCAN-ROUTE-01 non-sale routes contribute zero potential selling value', async () => {
+  const donatedSwing = {
+    id:'swing',name:'Baby swing chair',category:'Baby gear',lowValue:32,typicalValue:45,highValue:63,
+    confidence:'medium',effort:'medium',route:'donate',reason:'Better donated.',
+    searchQuery:'used baby swing chair',marketplace:'facebookMarketplace',marketplaceReason:'Local families.',
+    box:{left:0,top:0,width:1,height:1},
+  };
+  const recycledPrinter = {...donatedSwing,id:'printer',name:'Old printer',route:'recycle',marketplace:'localPickup'};
+  const response = await createHandler({fetcher:async()=>providerResponse({sceneSummary:'Room',items:[donatedSwing,recycledPrinter]})})(imageRequest(),env);
+  assert.equal(response.status,200);
+  const body=await response.json();
+  assert.deepEqual(body.items.map(item=>({route:item.route,marketplace:item.marketplace,values:[item.lowValue,item.typicalValue,item.highValue]})),[
+    {route:'donate',marketplace:'donate',values:[0,0,0]},
+    {route:'recycle',marketplace:'localPickup',values:[0,0,0]},
+  ]);
 });
 
 for(const config of [{OPENAI_MODEL:undefined},{OPENAI_MAX_REQUEST_COST_MICRO_USD:'invalid'},{OPENAI_MAX_REQUEST_COST_MICRO_USD:'131072.5'},{OPENAI_MAX_REQUEST_COST_MICRO_USD:'9007199254740992'},{OPENAI_MODEL:'other-model'},{OPENAI_MAX_REQUEST_COST_MICRO_USD:'10000'},{OPENAI_MAX_REQUEST_COST_MICRO_USD:undefined},{OPENAI_MAX_REQUEST_COST_MICRO_USD:'71199'}]) test(`CC-01 unsafe cost configuration ${JSON.stringify(config)}`,async()=>{
