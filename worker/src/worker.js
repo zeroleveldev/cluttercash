@@ -604,7 +604,11 @@ async function enrichWithEbayActivePrices(scan, env, dependencies) {
             ? 'browse_unavailable'
             : error?.message === 'Provider response too large'
               ? 'response_too_large'
-              : 'unexpected';
+              : error?.name === 'SyntaxError'
+                ? 'invalid_json'
+                : error?.name === 'TypeError'
+                  ? 'transport'
+                  : 'unexpected';
       console.info('ebay_enrichment_fallback', category);
     }
   });
