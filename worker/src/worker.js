@@ -596,19 +596,23 @@ async function enrichWithEbayActivePrices(scan, env, dependencies) {
         ebayComparableCount: prices.length,
       };
     } catch (error) {
-      const category = error?.message === 'eBay OAuth unavailable'
-        ? 'oauth_unavailable'
-        : error?.message === 'Invalid eBay OAuth response'
-          ? 'oauth_invalid'
-          : error?.message === 'eBay Browse unavailable'
-            ? 'browse_unavailable'
-            : error?.message === 'Provider response too large'
-              ? 'response_too_large'
-              : error?.name === 'SyntaxError'
-                ? 'invalid_json'
-                : error?.name === 'TypeError'
-                  ? 'transport'
-                  : 'unexpected';
+      const category = error?.message === 'eBay OAuth transport unavailable'
+        ? 'oauth_transport'
+        : error?.message === 'eBay Browse transport unavailable'
+          ? 'browse_transport'
+          : error?.message === 'eBay OAuth unavailable'
+            ? 'oauth_unavailable'
+            : error?.message === 'Invalid eBay OAuth response'
+              ? 'oauth_invalid'
+              : error?.message === 'eBay Browse unavailable'
+                ? 'browse_unavailable'
+                : error?.message === 'Provider response too large'
+                  ? 'response_too_large'
+                  : error?.name === 'SyntaxError'
+                    ? 'invalid_json'
+                    : error?.name === 'TypeError'
+                      ? 'transport'
+                      : 'unexpected';
       console.info('ebay_enrichment_fallback', category);
     }
   });
@@ -628,17 +632,20 @@ async function ebayAccessToken(env, dependencies) {
   const pending = dependencies.tokenRequest();
   if (pending) return pending;
   const request = (async () => {
-    const response = await dependencies.fetcher('https://api.ebay.com/identity/v1/oauth2/token', {
-      method: 'POST',
-      headers: {
-        Authorization: `Basic ${btoa(`${env.EBAY_CLIENT_ID}:${env.EBAY_CLIENT_SECRET}`)}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        grant_type: 'client_credentials',
-        scope: 'https://api.ebay.com/oauth/api_scope',
-      }).toString(),
-    });
+    let response;
+    try {
+      response = await dependencies.fetcher('https://api.ebay.com/identity/v1/oauth2/token', {
+        method: 'POST',
+        headers: {
+          Authorization: `Basic ${btoa(`${env.EBAY_CLIENT_ID}:${env.EBAY_CLIENT_SECRET}`)}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          grant_type: 'client_credentials',
+          scope: 'https://api.ebay.com/oauth/api_scope',
+        }).toString(),
+      });
+    } catch { throw new Error('eBay OAuth transport unavailable'); }
     if (!response.ok) throw new Error('eBay OAuth unavailable');
     const body = JSON.parse(await boundedResponseText(response, 16 * 1024));
     const lifetimeSeconds = Number(body?.expires_in);
@@ -664,13 +671,16 @@ async function ebayActiveComparablePrices(query, env, dependencies) {
   url.searchParams.set('q', query.trim().slice(0, 120));
   url.searchParams.set('limit', '50');
   url.searchParams.set('filter', 'buyingOptions:{FIXED_PRICE},priceCurrency:USD');
-  const response = await dependencies.fetcher(url.toString(), {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'X-EBAY-C-MARKETPLACE-ID': env.EBAY_MARKETPLACE_ID,
-    },
-  });
+  let response;
+  try {
+    response = await dependencies.fetcher(url.toString(), {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'X-EBAY-C-MARKETPLACE-ID': env.EBAY_MARKETPLACE_ID,
+      },
+    });
+  } catch { throw new Error('eBay Browse transport unavailable'); }
   if (!response.ok) throw new Error('eBay Browse unavailable');
   const body = JSON.parse(await boundedResponseText(response, MAX_EBAY_RESPONSE_BYTES));
   const summaries = Array.isArray(body?.itemSummaries) ? body.itemSummaries.slice(0, 50) : [];
