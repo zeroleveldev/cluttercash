@@ -37,7 +37,7 @@ const TELEMETRY_EVENTS = new Set([
 ]);
 const TELEMETRY_FAILURE_CODES = new Set(['api', 'network', 'unknown', 'framework', 'async']);
 
-const prompt = `Analyze this staged, non-sensitive household clutter photo for decluttering triage. Return at most 10 clearly visible objects, prioritizing items that may have meaningful resale value and omitting ordinary low-value clutter unless it should be bundled or donated. Treat each independently removable, materially distinct visible object as its own item where practical. Furniture must not absorb books, baskets, electronics, or décor sitting on or inside it. A retail product box normally represents the product shown or named on the box when it plausibly contains that product; identify it as a boxed product unless the box is visibly empty or clearly presented as packaging only. Do not report printed accessories, ports, feature labels, or product pictures on one retail box as separate items. Bundle only genuinely similar low-value objects, never unlike objects merely sharing a location. Describe an ordinary chair as a used chair with only visibly supported material or style details; do not call a chair a lounge chair or recliner unless a reclining or lounge form is clearly visible. Do not default uncertain or ordinary reusable items to donate. Choose sell when a realistic quick sale is plausibly $10 or more; choose bundle when similar low-value items together can plausibly reach $15 or more; choose donate only when no realistic buyer is likely or the effort clearly exceeds a return below $10. Be conservative and optimize for a realistic quick sale rather than an optimistic asking price. Resale values are broad US-dollar hypotheses, not live marketplace data or appraisals. Never infer a luxury brand, authenticity, exact model, material, dimensions, condition, or included accessories unless visible. When a commodity electronic is visibly dated or its maker, model, size, and features cannot be confirmed—such as an older non-smart TV, monitor, printer, DVD player, or basic stereo—do not compare it with modern premium products. If it plausibly sells, use a conservative quick local sale range, usually $5–$50, and recommend localPickup. Use donate or recycle only when it is visibly broken, unsafe, or has no realistic buyer—not merely because its exact identity is uncertain. Exact visibly identified collectible or premium models are exempt from this conservative default. Give a complete recommendation from this photo. A label or condition follow-up may be mentioned only as an optional way to improve confidence, never as a required step. Donate and recycle routes must use 0 for lowValue, typicalValue, and highValue. For each item, create a concise searchQuery for comparable listings without adding facts that are not visible, plus a marketplace recommendation chosen from ebay, facebookMarketplace, mercari, localPickup, consignment, or donate with a reason. Use ebay only when visible evidence supports a focused like-for-like identity; bulky generic goods should normally use localPickup or donate. Do not create listing copy or claim that live listings or completed sales were researched. Bounding boxes use normalized 0..1 coordinates. Return only the requested JSON schema.`;
+const prompt = `Analyze this staged, non-sensitive household clutter photo for decluttering triage. Return at most 10 clearly visible objects, prioritizing items that may have meaningful resale value and omitting ordinary low-value clutter unless it should be bundled or donated. Treat each independently removable, materially distinct visible object as its own item where practical. Furniture must not absorb books, baskets, electronics, or décor sitting on or inside it. A retail product box normally represents the product shown or named on the box when it plausibly contains that product; identify it as a boxed product unless the box is visibly empty or clearly presented as packaging only. Do not report printed accessories, ports, feature labels, or product pictures on one retail box as separate items. For an original retail box, include every clearly visible identifier in searchQuery: brand, size or capacity, and model number when shown. Bundle only genuinely similar low-value objects, never unlike objects merely sharing a location. Describe an ordinary chair as a used chair with only visibly supported material or style details; do not call a chair a lounge chair or recliner unless a reclining or lounge form is clearly visible. Do not default uncertain or ordinary reusable items to donate. Choose sell when a realistic quick sale is plausibly $10 or more; choose bundle when similar low-value items together can plausibly reach $15 or more; choose donate only when no realistic buyer is likely or the effort clearly exceeds a return below $10. Be conservative and optimize for a realistic quick sale rather than an optimistic asking price. Resale values are broad US-dollar hypotheses, not live marketplace data or appraisals. Never infer a luxury brand, authenticity, exact model, material, dimensions, condition, or included accessories unless visible. When a commodity electronic is visibly dated or its maker, model, size, and features cannot be confirmed—such as an older non-smart TV, monitor, printer, DVD player, or basic stereo—do not compare it with modern premium products. If it plausibly sells, use a conservative quick local sale range, usually $5–$50, and recommend localPickup. Use donate or recycle only when it is visibly broken, unsafe, or has no realistic buyer—not merely because its exact identity is uncertain. Exact visibly identified collectible or premium models are exempt from this conservative default. Give a complete recommendation from this photo. A label or condition follow-up may be mentioned only as an optional way to improve confidence, never as a required step. Donate and recycle routes must use 0 for lowValue, typicalValue, and highValue. For each item, create a concise searchQuery for comparable listings without adding facts that are not visible, plus a marketplace recommendation chosen from ebay, facebookMarketplace, mercari, localPickup, consignment, or donate with a reason. Use ebay only when visible evidence supports a focused like-for-like identity; bulky generic goods should normally use localPickup or donate. Do not create listing copy or claim that live listings or completed sales were researched. Bounding boxes use normalized 0..1 coordinates. Return only the requested JSON schema.`;
 
 const responseSchema = {
   type: 'object',
@@ -627,13 +627,30 @@ function shouldEnrichWithEbay(item) {
   const identity = `${item.name} ${item.category} ${item.searchQuery}`.toLowerCase();
   const commodityElectronic = /\b(?:tv|television|monitor|printer|dvd(?:\s+player)?|blu[ -]?ray player|stereo|receiver)\b/.test(identity);
   if (!commodityElectronic) return true;
-  return hasModelLikeToken(item.searchQuery);
+  return hasFocusedCommodityIdentity(item.searchQuery);
 }
 
 function hasModelLikeToken(value) {
   return normalizedTokens(value).some(token => token.length >= 4
     && /[a-z]/.test(token) && /\d/.test(token)
     && !/^(?:4k|8k|720p|1080p)$/.test(token));
+}
+
+function hasFocusedCommodityIdentity(value) {
+  return hasModelLikeToken(value) || hasVisibleBrandAndNumericSpec(value);
+}
+
+function hasVisibleBrandAndNumericSpec(value) {
+  const text = String(value).toLowerCase();
+  const numericSpec = /\b\d{1,4}\s*(?:"|inch(?:es)?|gb|tb|hz|khz|watts?|w)\b/.test(text);
+  if (!numericSpec) return false;
+  const generic = new Set([
+    'box', 'boxed', 'display', 'electronic', 'electronics', 'flat', 'inch', 'inches',
+    'lcd', 'led', 'monitor', 'new', 'old', 'older', 'oled', 'open', 'product', 'qled',
+    'screen', 'smart', 'television', 'tv', 'used', 'unknown',
+  ]);
+  return normalizedTokens(text).some(token => /^[a-z]+$/.test(token)
+    && token.length >= 2 && !generic.has(token));
 }
 
 function ebayConfigurationValid(env) {
@@ -1619,7 +1636,7 @@ function isGenericFlatScreenTelevision(item) {
   const identity = `${item.name || ''} ${item.searchQuery || ''}`.toLowerCase();
   const flatScreen = /\b(?:flat[ -]?screen|lcd|led)\b/.test(identity);
   const television = /\b(?:tv|television)\b/.test(identity);
-  return flatScreen && television && !hasModelLikeToken(identity);
+  return flatScreen && television && !hasFocusedCommodityIdentity(item.searchQuery);
 }
 
 function itemLooksDamaged(item) {

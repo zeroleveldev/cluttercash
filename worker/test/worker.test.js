@@ -192,6 +192,7 @@ for (const route of ['scans', 'items/identify']) test(`OPENAI-01 ${route} uses b
     assert.match(instructions, /retail product box/i);
     assert.match(instructions, /product shown or named on the box/i);
     assert.match(instructions, /printed accessories.*separate items/i);
+    assert.match(instructions, /searchQuery.*brand.*size.*model/i);
     assert.match(instructions, /chair.*lounge.*recliner/i);
   }
   assert.equal(payload.contents,undefined);
@@ -292,6 +293,34 @@ test('SCAN-TV-02 visibly broken flat-screen remains a zero-value non-sale item',
   const result=(await response.json()).items[0];
   assert.equal(result.route,'recycle');
   assert.deepEqual([result.lowValue,result.typicalValue,result.highValue],[0,0,0]);
+});
+
+test('SCAN-TV-03 boxed television keeps visible brand and size identity', async () => {
+  const television = {
+    id:'tv',name:'Onn 32 inch LED TV boxed product',category:'Electronics',lowValue:30,typicalValue:45,highValue:60,
+    confidence:'medium',effort:'low',route:'sell',reason:'Brand and size are visible on the original box.',
+    searchQuery:'Onn 32 inch LED TV',marketplace:'ebay',marketplaceReason:'Visible brand and size support focused comparisons.',
+    box:{left:0,top:0,width:1,height:1},
+  };
+  const response=await createHandler({fetcher:async()=>providerResponse({sceneSummary:'Boxed television',items:[television]})})(imageRequest(),env);
+  const result=(await response.json()).items[0];
+  assert.equal(result.searchQuery,'Onn 32 inch LED TV');
+  assert.equal(result.marketplace,'ebay');
+  assert.deepEqual([result.lowValue,result.typicalValue,result.highValue],[30,45,60]);
+});
+
+test('SCAN-TV-04 size without a visible brand remains generic', async () => {
+  const television = {
+    id:'tv',name:'32 inch flat-screen TV',category:'Electronics',lowValue:30,typicalValue:45,highValue:60,
+    confidence:'low',effort:'low',route:'sell',reason:'Brand and model are not visible.',
+    searchQuery:'32 inch flat screen TV',marketplace:'ebay',marketplaceReason:'Broad comparisons.',
+    box:{left:0,top:0,width:1,height:1},
+  };
+  const response=await createHandler({fetcher:async()=>providerResponse({sceneSummary:'Television',items:[television]})})(imageRequest(),env);
+  const result=(await response.json()).items[0];
+  assert.equal(result.searchQuery,'used flat screen TV');
+  assert.equal(result.marketplace,'localPickup');
+  assert.deepEqual([result.lowValue,result.typicalValue,result.highValue],[5,25,50]);
 });
 
 test('SCAN-QUERY-01 removes room placement from marketplace searches', async () => {

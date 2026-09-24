@@ -203,6 +203,27 @@ test('EBAY-02e rejects wrong-size and accessory-only electronics listings', asyn
   assert.deepEqual(result.items[0],{...television,priceSource:'ai_estimate',ebayComparableCount:0});
 });
 
+test('EBAY-02f boxed television with visible brand and size uses focused active comparables', async () => {
+  const television=item(1,{
+    name:'Onn 32 inch LED TV boxed product',category:'Electronics',
+    searchQuery:'Onn 32 inch LED TV',marketplace:'ebay',
+  });
+  const fetcher=async url=>String(url).includes('openai.com')?openAIResponse([television])
+    :String(url).includes('/identity/')?tokenResponse():browseResponse([
+      listing('Onn 32 inch LED TV used',30),
+      listing('Onn 32 inch LED television tested',40),
+      listing('Onn 32 inch LED TV local pickup',50),
+      listing('Onn 43 inch LED TV',90),
+      listing('Onn 32 inch TV replacement remote only',10),
+    ]);
+  const response=await createHandler({fetcher,providerMetricSender:async()=>{}})(scanRequest(),baseEnv);
+  const result=await response.json();
+  assert.equal(result.items[0].searchQuery,'Onn 32 inch LED TV');
+  assert.equal(result.items[0].priceSource,'ebay_active');
+  assert.equal(result.items[0].ebayComparableCount,3);
+  assert.deepEqual([result.items[0].lowValue,result.items[0].typicalValue,result.items[0].highValue],[35,40,45]);
+});
+
 test('EBAY-03 enriches at most ten items with bounded concurrency and one cached OAuth token', async () => {
   let tokenCalls = 0; let activeBrowse = 0; let maxActiveBrowse = 0; let browseCalls = 0;
   const fetcher = async url => {
