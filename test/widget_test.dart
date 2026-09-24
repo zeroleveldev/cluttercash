@@ -350,6 +350,10 @@ void main() {
     expect(find.text('38 min'), findsNothing);
     expect(find.text('12 ft²'), findsNothing);
     expect(find.text('potential range'), findsOneWidget);
+    expect(
+      find.textContaining('Estimates only—not guaranteed sale prices'),
+      findsOneWidget,
+    );
   });
   testWidgets(
     'item details stay focused on research and correction without listing tools',
@@ -376,7 +380,11 @@ void main() {
       expect(find.text('Price research'), findsOneWidget);
       expect(find.text('Sold results'), findsOneWidget);
       expect(find.text('Active listings'), findsOneWidget);
-      expect(find.textContaining('asking prices'), findsOneWidget);
+      expect(find.textContaining('asking prices'), findsAtLeastNWidgets(1));
+      expect(
+        find.textContaining('Take a close photo of the brand/model label'),
+        findsOneWidget,
+      );
       expect(find.text('Improve with a model-label photo'), findsOneWidget);
       expect(find.text('Editable listing draft'), findsNothing);
       expect(find.text('Answer listing questions'), findsNothing);

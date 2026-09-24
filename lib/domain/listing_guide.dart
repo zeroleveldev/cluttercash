@@ -13,9 +13,10 @@ class ListingGuide {
   });
 
   factory ListingGuide.forItem(ClutterItem item) {
-    final query = item.searchQuery.trim().isNotEmpty
+    final rawQuery = item.searchQuery.trim().isNotEmpty
         ? item.searchQuery.trim()
         : item.name.trim();
+    final query = _researchQuery(item.name, rawQuery);
     final marketplace =
         item.marketplace == Marketplace.localPickup &&
             item.marketplaceReason.trim().isEmpty
@@ -64,6 +65,18 @@ class ListingGuide {
       'Active listings show asking prices, not proven value. Completed-sale results are stronger evidence, but verify that the model, condition, accessories, and shipping terms truly match.';
 
   String get evidenceDisclaimer => _evidenceDisclaimer;
+
+  static String _researchQuery(String name, String query) {
+    final identity = '$name $query'.toLowerCase();
+    final wholeFlatScreen =
+        RegExp(r'\b(?:flat[ -]?screen|lcd|led)\b').hasMatch(identity) &&
+        RegExp(r'\b(?:tv|television)\b').hasMatch(identity);
+    final accessory = RegExp(
+      r'\b(?:wall mount|tv mount|mounting bracket|replacement remote|replacement stand|for parts)\b',
+    ).hasMatch(name.toLowerCase());
+    if (wholeFlatScreen && !accessory) return 'used flat screen TV';
+    return query;
+  }
 
   static Marketplace _fallbackMarketplace(ClutterItem item) {
     if (item.route == ItemRoute.donate || item.typicalValue <= 10) {

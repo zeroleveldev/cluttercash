@@ -189,6 +189,10 @@ for (const route of ['scans', 'items/identify']) test(`OPENAI-01 ${route} uses b
     assert.match(instructions, /sell.*\$10/i);
     assert.match(instructions, /bundle.*\$15/i);
     assert.match(instructions, /follow-up.*optional/i);
+    assert.match(instructions, /retail product box/i);
+    assert.match(instructions, /product shown or named on the box/i);
+    assert.match(instructions, /printed accessories.*separate items/i);
+    assert.match(instructions, /chair.*lounge.*recliner/i);
   }
   assert.equal(payload.contents,undefined);
   assert.equal(payload.generationConfig,undefined);
@@ -272,7 +276,7 @@ test('SCAN-TV-01 generic intact flat-screen gets a quick-sale range and focused 
   assert.deepEqual([result.lowValue,result.typicalValue,result.highValue],[5,25,50]);
   assert.equal(result.route,'sell');
   assert.equal(result.marketplace,'localPickup');
-  assert.equal(result.searchQuery,'used flat screen television -mount -bracket -stand -remote -parts');
+  assert.equal(result.searchQuery,'used flat screen TV');
   assert.match(result.reason,/quick local/i);
   assert.match(result.marketplaceReason,/local pickup/i);
 });

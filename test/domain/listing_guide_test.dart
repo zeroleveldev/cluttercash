@@ -49,4 +49,17 @@ void main() {
   test('keeps the recommended marketplace for research links', () {
     expect(ListingGuide.forItem(item).recommendedMarketplace, Marketplace.ebay);
   });
+
+  test('turns a noisy whole-TV query into a plain used-TV search', () {
+    final guide = ListingGuide.forItem(
+      item.copyWith(
+        name: 'TV on fireplace mantle',
+        searchQuery:
+            'used flat screen television -mount -bracket -stand -remote -parts',
+      ),
+    );
+
+    expect(guide.searchQuery, 'used flat screen TV');
+    expect(guide.ebayActive.queryParameters['_nkw'], 'used flat screen TV');
+  });
 }

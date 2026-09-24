@@ -2099,8 +2099,17 @@ class _ItemDetailsSheetState extends State<_ItemDetailsSheet> {
     PriceSource.userEntered =>
       'User-entered potential range—not an appraisal or guaranteed sale price.',
     PriceSource.aiEstimate =>
-      'AI estimate—not an appraisal or live marketplace result.',
+      'AI estimate—not an appraisal, live marketplace result, or guaranteed sale price. Compare the research links with the same model and condition.',
   };
+
+  bool get shouldSuggestLabelPhoto {
+    if (item.route != ItemRoute.sell && item.route != ItemRoute.bundle) {
+      return false;
+    }
+    final width = item.highValue - item.lowValue;
+    final ratio = item.lowValue > 0 ? item.highValue / item.lowValue : 0;
+    return width >= 40 || (width >= 20 && ratio >= 3);
+  }
 
   @override
   void initState() {
@@ -2248,6 +2257,20 @@ class _ItemDetailsSheetState extends State<_ItemDetailsSheet> {
             body: guide.marketplaceReason,
           ),
           const SizedBox(height: 12),
+          if (shouldSuggestLabelPhoto) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF1DF),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Text(
+                'Wide estimate? Take a close photo of the brand/model label or product barcode for a more specific identity and better price research.',
+                style: TextStyle(color: _ink, fontWeight: FontWeight.w700),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
           OutlinedButton.icon(
             onPressed: identifying ? null : _identifyFromLabel,
             icon: const Icon(Icons.document_scanner_outlined),
@@ -2601,7 +2624,7 @@ class _ResultHero extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Best guess—not an appraisal. Verify high-value items before selling.',
+                'Estimates only—not guaranteed sale prices. Active listings show asking prices, not what items sold for.',
                 style: TextStyle(color: Colors.white54, fontSize: 12),
               ),
             ],
