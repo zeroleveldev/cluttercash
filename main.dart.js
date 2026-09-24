@@ -8091,7 +8091,7 @@ q=B.c.bD(a.ay)
 q=q.length!==0?q:A.aPb(r)
 p=t.N
 o=t.z
-n=A.auT(k,m,l,A.ai(["_nkw",s],p,o))
+n=A.auT(k,m,l,A.ai(["_nkw",s,"LH_ItemCondition","3000"],p,o))
 A.auT(k,m,l,A.ai(["_nkw",s,"LH_Complete","1","LH_Sold","1"],p,o))
 return new A.a8n(s,r,q,n,A.auT(k,"www.facebook.com","/marketplace/search/",A.ai(["query",s],p,o)),A.auT(k,"www.mercari.com","/search/",A.ai(["keyword",s],p,o)))},
 aPc(a,b){var s,r,q=(a+" "+b).toLowerCase(),p=A.bu("\\b(?:flat[ -]?screen|lcd|led)\\b",!1)
@@ -44480,9 +44480,9 @@ H(a){return B.a00}}
 A.QA.prototype={
 H(a){var s=null,r=A.aJ("Point at the mess.",s,s,s,A.W(a).ok.a,s,s),q=A.W(a).ok.a
 r=A.c([B.a02,B.SE,B.a0t,B.aQ,r,A.aJ("Find the money.",s,s,s,q==null?s:q.bT(B.ad),s,s),B.iK,A.aJ("Scan a shelf, closet, or garage. We\u2019ll spot what may be worth selling\u2014and tell you what deserves your time.",s,s,s,A.W(a).ok.y,s,s),B.SA,B.a0x,B.iL],t.p)
-r.push(A.p6(B.I0,B.Zu,new A.ak3(a)))
-r.push(A.aiw(B.Ig,B.YR,new A.ak4(a)))
-r.push(A.aiw(B.I9,B.Zj,new A.ak5(a)))
+r.push(A.p6(B.I0,B.Zt,new A.ak3(a)))
+r.push(A.aiw(B.Ig,B.YQ,new A.ak4(a)))
+r.push(A.aiw(B.I9,B.Zi,new A.ak5(a)))
 r.push(A.aiw(B.Id,B.mm,new A.ak6(a)))
 r.push(B.m6)
 r.push(B.Qp)
@@ -44586,7 +44586,7 @@ case 5:case 1:return A.H(q,r)}})
 return A.I($async$pI,r)},
 H(a){var s,r=this,q=null,p=A.c([],t.p)
 if(J.xs(r.e))p.push(A.LQ(q,q,B.I1,q,q,r.ga7y(),q,q,"Delete all projects"))
-p=A.kr(p,q,q,!0,!0,B.bK,q,1,q,q,q,!1,q,!1,q,q,q,q,!0,q,q,q,q,q,B.Zf,q,q,q,1,q,!0)
+p=A.kr(p,q,q,!0,!0,B.bK,q,1,q,q,q,!1,q,!1,q,q,q,q,!0,q,q,q,q,q,B.Ze,q,q,q,1,q,!0)
 if(r.f)s=B.DN
 else s=J.rP(r.e)?B.a0o:A.aP9(new A.arB(r),J.cB(r.e),B.Gu,new A.arC())
 return A.iR(p,A.hq(!0,A.dV(new A.d0(B.jB,s,q),q,q),B.a4,!0))}}
@@ -44601,7 +44601,7 @@ $1(a){return new A.nd(this.a,this.b,null)},
 $S:125}
 A.arw.prototype={
 $1(a){var s=null,r=A.aJ("Delete \u201c"+this.a.b+"\u201d from this device? This cannot be undone.",s,s,s,s,s,s)
-return A.a00(A.c([A.fV(B.fC,new A.aru(a),s),A.tN(B.Zk,new A.arv(a),s)],t.p),r,B.Z4)},
+return A.a00(A.c([A.fV(B.fC,new A.aru(a),s),A.tN(B.Zj,new A.arv(a),s)],t.p),r,B.Z3)},
 $S:80}
 A.aru.prototype={
 $0(){A.cn(this.a,!1).hT(!1)
@@ -44612,7 +44612,7 @@ $0(){A.cn(this.a,!1).hT(!0)
 return null},
 $S:0}
 A.ars.prototype={
-$1(a){return A.a00(A.c([A.fV(B.fC,new A.arq(a),null),A.tN(B.YH,new A.arr(a),null)],t.p),B.YW,B.Ze)},
+$1(a){return A.a00(A.c([A.fV(B.fC,new A.arq(a),null),A.tN(B.YG,new A.arr(a),null)],t.p),B.YV,B.Zd)},
 $S:80}
 A.arq.prototype={
 $0(){A.cn(this.a,!1).hT(!1)
@@ -44698,10 +44698,10 @@ case 1:return A.H(q,r)}})
 return A.I($async$x7,r)},
 Na(a,b){return A.AR(a,A.eR(new A.a17(b),null,t.z))},
 a5B(a){return this.Na(a,null)},
-H(a){var s=null,r=A.kr(s,s,s,!0,!0,B.bK,s,1,s,s,s,!1,s,!1,s,s,B.en,s,!0,s,s,s,s,s,B.YV,s,s,s,1,s,!0),q=A.cC(32),p=t.p
-return A.iR(r,A.hq(!0,A.dV(new A.d0(B.fR,A.Cr(A.de(A.c([A.dr(s,A.iV(B.V,A.c([B.Ih,A.Nx(0,new A.cf(B.GH,A.iu(s,s,s,new A.YM(s),B.x),s)),B.PC],p),B.L,B.c1),B.r,s,new A.bX(B.ac,s,s,q,s,s,B.T),s,225,s,s,s,s,s),B.iL,A.aJ("One wide photo works best",s,s,s,A.W(a).ok.d,B.au,s),B.bt,A.aJ("Avoid faces, mail, keys, medication, or anything private. Estimates are not appraisals.",s,s,s,A.W(a).ok.z,B.au,s),B.dh,A.p6(B.oZ,B.B9,new A.a1d(this,a)),B.AA,A.ayR(B.I6,B.Z2,new A.a1e(this,a),A.aPT(s,s,s,s,s,s,s,s,s,s,s,B.Sq,s,s,new A.cO(A.cC(18),B.q),B.Cd,s,s,s,s)),B.bB,A.fV(B.Zm,new A.a1f(this,a),s)],p),B.bm,B.P,B.H),s,B.Gz),s),s,s),B.a4,!0))}}
+H(a){var s=null,r=A.kr(s,s,s,!0,!0,B.bK,s,1,s,s,s,!1,s,!1,s,s,B.en,s,!0,s,s,s,s,s,B.YU,s,s,s,1,s,!0),q=A.cC(32),p=t.p
+return A.iR(r,A.hq(!0,A.dV(new A.d0(B.fR,A.Cr(A.de(A.c([A.dr(s,A.iV(B.V,A.c([B.Ih,A.Nx(0,new A.cf(B.GH,A.iu(s,s,s,new A.YM(s),B.x),s)),B.PC],p),B.L,B.c1),B.r,s,new A.bX(B.ac,s,s,q,s,s,B.T),s,225,s,s,s,s,s),B.iL,A.aJ("One wide photo works best",s,s,s,A.W(a).ok.d,B.au,s),B.bt,A.aJ("Avoid faces, mail, keys, medication, or anything private. Estimates are not appraisals.",s,s,s,A.W(a).ok.z,B.au,s),B.dh,A.p6(B.oZ,B.B9,new A.a1d(this,a)),B.AA,A.ayR(B.I6,B.Z1,new A.a1e(this,a),A.aPT(s,s,s,s,s,s,s,s,s,s,s,B.Sq,s,s,new A.cO(A.cC(18),B.q),B.Cd,s,s,s,s)),B.bB,A.fV(B.Zl,new A.a1f(this,a),s)],p),B.bm,B.P,B.H),s,B.Gz),s),s,s),B.a4,!0))}}
 A.a1c.prototype={
-$1(a){return A.a00(A.c([A.fV(B.fC,new A.a19(a),null),A.fV(B.mm,new A.a1a(a),null),A.tN(B.YX,new A.a1b(a),null)],t.p),B.YL,B.Zb)},
+$1(a){return A.a00(A.c([A.fV(B.fC,new A.a19(a),null),A.fV(B.mm,new A.a1a(a),null),A.tN(B.YW,new A.a1b(a),null)],t.p),B.YK,B.Za)},
 $S:80}
 A.a19.prototype={
 $0(){A.cn(this.a,!1).hT(!1)
@@ -44848,7 +44848,7 @@ break}p.af(new A.ali(p))
 p.a.c.$0()
 case 1:return A.H(q,r)}})
 return A.I($async$nV,r)},
-H(a){var s=null,r=A.kr(s,s,s,!0,!0,B.bK,s,1,s,s,s,!1,s,!1,s,s,B.en,s,!0,s,s,s,s,s,s,s,s,s,1,s,!0),q=t.p,p=A.c([B.a0u,B.bt,A.aJ("Enter your beta code",s,s,s,A.W(a).ok.d,s,s),B.bt,B.Z6,B.dh,A.qP(!1,B.bM,this.d,B.IJ,!1,s,s,B.fz),B.iJ,A.tN(B.Zd,this.gFZ(),s),A.fV(B.YK,new A.alk(a),s)],q),o=this.e
+H(a){var s=null,r=A.kr(s,s,s,!0,!0,B.bK,s,1,s,s,s,!1,s,!1,s,s,B.en,s,!0,s,s,s,s,s,s,s,s,s,1,s,!0),q=t.p,p=A.c([B.a0u,B.bt,A.aJ("Enter your beta code",s,s,s,A.W(a).ok.d,s,s),B.bt,B.Z5,B.dh,A.qP(!1,B.bM,this.d,B.IJ,!1,s,s,B.fz),B.iJ,A.tN(B.Zc,this.gFZ(),s),A.fV(B.YJ,new A.alk(a),s)],q),o=this.e
 if(o!=null)B.b.N(p,A.c([B.aQ,A.aJ(o,s,s,s,B.mj,B.au,s)],q))
 return A.iR(r,A.hq(!0,A.dV(new A.d0(B.n8,new A.cf(B.hp,A.de(p,B.bm,B.dL,B.H),s),s),s,s),B.a4,!0))}}
 A.alh.prototype={
@@ -44994,7 +44994,7 @@ p=r?j:k.ga6A()
 o=r?B.Az:B.Ic
 B.b.N(s,A.c([B.e7,A.p6(o,A.aJ(r?"Checking\u2026":"Check approval status",j,j,j,j,j,j),p)],q))}r=k.Q
 if(r!=null){r=A.c([B.aQ,A.aJ(r,j,j,j,B.B4,B.au,j)],q)
-if(!k.y)r.push(A.fV(B.Z8,k.gai8(),j))
+if(!k.y)r.push(A.fV(B.Z7,k.gai8(),j))
 B.b.N(s,r)}s=A.de(s,B.a_,B.P,B.H)}else{s=A.aJ("Request continued access",j,j,j,A.W(a).ok.d,j,j)
 r=A.qP(!1,B.L3,k.d,B.IM,!0,j,B.B1,B.fz)
 q=A.qP(j,B.bM,k.e,B.IK,!0,j,j,B.AU)
@@ -45003,11 +45003,11 @@ o=k.r
 n=o?j:k.gaid()
 m=o?B.Az:B.Im
 l=t.p
-n=A.c([B.a0s,B.bt,s,B.bt,B.YF,B.dh,r,B.aQ,q,B.aQ,p,B.iK,A.p6(m,A.aJ(o?"Sending request\u2026":"Request access",j,j,j,j,j,j),n)],l)
+n=A.c([B.a0s,B.bt,s,B.bt,B.YE,B.dh,r,B.aQ,q,B.aQ,p,B.iK,A.p6(m,A.aJ(o?"Sending request\u2026":"Request access",j,j,j,j,j,j),n)],l)
 s=k.Q
 if(s!=null)B.b.N(n,A.c([B.aQ,A.aJ(s,j,j,j,B.WD,B.au,j)],l))
 n.push(B.iJ)
-n.push(B.Zv)
+n.push(B.Zu)
 s=A.de(n,B.bm,B.P,B.H)}return A.iR(i,A.hq(!0,A.dV(new A.d0(B.n8,A.Cr(s,j,B.hp),j),j,j),B.a4,!0))}}
 A.alo.prototype={
 $0(){var s=this.a
@@ -45067,13 +45067,13 @@ r=t.p
 s=A.c([n,B.dh,B.a0r,B.iO,k,B.bt,A.aJ(s,p,p,p,A.W(a).ok.y,p,p)],r)
 if(!l){n=A.cC(14)
 B.b.N(s,A.c([B.aQ,A.dr(p,A.aJ(m,p,p,p,B.UM,p,p),B.r,p,new A.bX(B.Ed,p,p,n,p,p,B.T),p,p,p,B.Gn,p,p,p)],r))}s.push(B.dh)
-s.push(A.tN(B.Z5,new A.a8s(q,a),p))
+s.push(A.tN(B.Z4,new A.a8s(q,a),p))
 s.push(B.iO)
-s.push(A.aE8(B.Zo,new A.a8t(q,a)))
+s.push(A.aE8(B.Zn,new A.a8t(q,a)))
 s.push(B.iO)
-s.push(A.fV(B.YT,new A.a8u(a),p))
+s.push(A.fV(B.YS,new A.a8u(a),p))
 s.push(B.bt)
-s.push(B.Za)
+s.push(B.Z9)
 return A.iR(o,A.hq(!0,A.dV(new A.d0(B.fR,A.Cr(A.de(s,B.bm,B.P,B.H),p,B.GF),p),p,p),B.a4,!0))}}
 A.a8s.prototype={
 $0(){var s=this.b,r=A.eR(new A.a8r(this.a,s),null,t.H)
@@ -45102,7 +45102,7 @@ A.ls.prototype={
 ag(){return new A.Ww()}}
 A.Ww.prototype={
 a8j(a){var s=null
-return A.iR(A.kr(s,s,s,!0,!0,s,s,1,s,s,s,!1,s,!1,s,s,s,s,!0,s,s,s,s,s,B.Z0,s,s,s,1,s,!0),A.a8k(A.c([B.Ie,B.m5,A.aJ("No items identified",s,s,s,A.W(a).ok.d,s,s),B.aQ,B.Zr,B.aQ,B.YZ,B.dh,A.tN(B.Z7,new A.asH(a),s)],t.p),B.hp))},
+return A.iR(A.kr(s,s,s,!0,!0,s,s,1,s,s,s,!1,s,!1,s,s,s,s,!0,s,s,s,s,s,B.Z_,s,s,s,1,s,!0),A.a8k(A.c([B.Ie,B.m5,A.aJ("No items identified",s,s,s,A.W(a).ok.d,s,s),B.aQ,B.Zq,B.aQ,B.YY,B.dh,A.tN(B.Z6,new A.asH(a),s)],t.p),B.hp))},
 giH(){var s=this.d
 if(s===$){s=this.a.d
 s=this.d=s==null?new A.nn("demo-scan","garage-reset",new A.eM(Date.now(),0,!1),B.Ke):s}return s},
@@ -45136,7 +45136,7 @@ n.push(A.p6(B.I8,A.aJ("Start clearing "+r+" items",j,j,j,j,j,j),q))
 n.push(B.AA)
 n.push(B.iK)
 n.push(B.a1R)
-l=A.c([new A.Cw(s,B.YJ,B.pr,B.bK,B.bK,!0,j),new A.Pq(A.dV(new A.d0(B.jB,new A.cf(B.Gw,A.de(n,B.bm,B.P,B.H),j),j),j,j),j)],l)
+l=A.c([new A.Cw(s,B.YI,B.pr,B.bK,B.bK,!0,j),new A.Pq(A.dV(new A.d0(B.jB,new A.cf(B.Gw,A.de(n,B.bm,B.P,B.H),j),j),j,j),j)],l)
 s=A.iR(j,A.hq(!0,new A.Kj(l,B.aD,!1,j,j,B.fN,j,!1,j,0,j,j,j,B.m8,B.aI,j,j,B.L,B.aJ,j),B.a4,!0))}return s},
 ahQ(a,b){return A.aAz(B.cV,new A.asL(this,b),a,!0,B.ii,t.z)},
 u_(a){return this.ahR(a)},
@@ -45241,7 +45241,7 @@ break
 default:r=null}return r},
 gasQ(){var s=this.d
 s===$&&A.a()
-switch(s.y.a){case 1:s="Based on "+s.z+" filtered active listings captured at analysis time. These are current active asking prices\u2014not sold prices, not an appraisal, and not a guaranteed sale price."
+switch(s.y.a){case 1:s="Based on "+s.z+" filtered active listings captured at analysis time. Used listings are prioritized; new listings are considered only when no used listings are available. These are asking prices\u2014not sold prices, an appraisal, or a guaranteed sale price."
 break
 case 2:s="User-entered potential range\u2014not an appraisal or guaranteed sale price."
 break
@@ -45318,7 +45318,7 @@ case 1:return A.H(q,r)}})
 return A.I($async$y_,r)},
 H(a){return new A.yY(0.9,0.58,0.96,!1,new A.apk(this,a),null)}}
 A.apc.prototype={
-$1(a){return A.a00(A.c([A.fV(B.fC,new A.apa(a),null),A.p6(B.oZ,B.B9,new A.apb(a))],t.p),B.Sh,B.Zn)},
+$1(a){return A.a00(A.c([A.fV(B.fC,new A.apa(a),null),A.p6(B.oZ,B.B9,new A.apb(a))],t.p),B.Sh,B.Zm)},
 $S:80}
 A.apa.prototype={
 $0(){A.cn(this.a,!1).hT(!1)
@@ -45369,7 +45369,7 @@ if(m.d>=100)o.push(B.mI)
 o.push(B.m9)
 o.push(new A.RQ(n.d.f,r))
 q=A.c([q,B.m5,A.i1(o,B.a_,B.H,0),B.aQ],p)
-if(n.a.c)q.push(B.Zp)
+if(n.a.c)q.push(B.Zo)
 o=this.b
 q.push(A.aJ(n.d.b,r,r,r,A.W(o).ok.d,r,r))
 q.push(B.iN)
@@ -45379,7 +45379,7 @@ q.push(A.aJ(n.gasQ(),r,r,r,B.B3,r,r))
 q.push(B.e7)
 q.push(new A.F4(B.HH,"Best place to try: "+A.aDI(A.l2(n.d).b),A.l2(n.d).c,r))
 q.push(B.aQ)
-if(n.ga09())B.b.N(q,A.c([A.dr(r,B.YS,B.r,r,new A.bX(B.EA,r,r,A.cC(14),r,r,B.T),r,r,r,B.ok,r,r,r),B.bB],p))
+if(n.ga09())B.b.N(q,A.c([A.dr(r,B.YR,B.r,r,new A.bX(B.EA,r,r,A.cC(14),r,r,B.T),r,r,r,B.ok,r,r,r),B.bB],p))
 m=n.e
 s=m?r:n.gad4()
 q.push(A.ayR(B.I7,A.aJ(m?"Reading the model label\u2026":"Improve with a model-label photo",r,r,r,r,r,r),s,r))
@@ -45392,18 +45392,18 @@ q.push(B.iL)
 q.push(A.aJ("Price research",r,r,r,A.W(o).ok.e,r,r))
 q.push(B.iM)
 A.l2(n.d)
-q.push(A.aJ("Active listings show asking prices, not proven value. Completed-sale results are stronger evidence, but verify that the model, condition, accessories, and shipping terms truly match.",r,r,r,r,r,r))
+q.push(A.aJ("The eBay link is filtered to used active listings. These are asking prices, not proven sale values, so verify that the model, condition, accessories, and shipping terms truly match.",r,r,r,r,r,r))
 q.push(B.aQ)
 q.push(new A.Ac(new A.api(),A.l2(n.d).d,B.fV,r))
 if(A.l2(n.d).b!==B.fc&&A.l2(n.d).b!==B.i_&&A.l2(n.d).b!==B.i0)B.b.N(q,A.c([B.bB,new A.Ac(new A.apj(n),A.l2(n.d).gat2(),B.fV,r)],p))
 q.push(B.iO)
 q.push(A.aJ("Search: "+A.l2(n.d).a,r,r,r,B.ml,r,r))
 q.push(B.aQ)
-q.push(A.fV(B.Z9,n.gafd(),r))
+q.push(A.fV(B.Z8,n.gafd(),r))
 return A.Cr(A.de(q,B.bm,B.P,B.H),b,B.GA)},
 $S:527}
 A.api.prototype={
-$2(a,b){return A.p6(B.HY,B.YC,b)},
+$2(a,b){return A.p6(B.HY,B.YB,b)},
 $S:526}
 A.apj.prototype={
 $2(a,b){var s=null,r=this.a.d
@@ -45477,11 +45477,11 @@ q=A.qP(m,B.bM,q,A.a7u(m,B.cB,m,m,m,m,m,m,!0,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,
 p=n.r
 p===$&&A.a()
 o=t.p
-p=A.c([k,B.m5,j,B.bB,B.YU,B.e7,i,B.aQ,s,B.bB,r,B.bt,q,B.bt,A.qP(m,B.bM,p,A.a7u(m,B.cB,m,m,m,m,m,m,!0,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,"High potential value",!0,!0,!1,m,m,m,m,m,"$ ",m,m,m,m,m,m,m,m),!0,m,B.mg,B.fz)],o)
+p=A.c([k,B.m5,j,B.bB,B.YT,B.e7,i,B.aQ,s,B.bB,r,B.bt,q,B.bt,A.qP(m,B.bM,p,A.a7u(m,B.cB,m,m,m,m,m,m,!0,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,"High potential value",!0,!0,!1,m,m,m,m,m,"$ ",m,m,m,m,m,m,m,m),!0,m,B.mg,B.fz)],o)
 k=n.w
 if(k!=null)B.b.N(p,A.c([B.bt,A.aJ(k,m,m,m,B.B4,m,m)],o))
 p.push(B.e7)
-p.push(A.p6(B.Il,B.Zi,n.gFZ()))
+p.push(A.p6(B.Il,B.Zh,n.gFZ()))
 p.push(A.fV(B.fC,new A.ap8(a),m))
 return new A.cf(new A.ao(0,0,0,l.f.d),A.hq(!0,A.Cr(A.de(p,B.bm,B.P,B.H),m,B.GB),B.a4,!1),m)}}
 A.ap6.prototype={
@@ -45507,7 +45507,7 @@ if(this.e)B.b.N(r,A.c([B.e6,B.a1l],o))
 n.push(A.na(q,A.i1(r,B.a_,B.H,0),q,q,17,q,17,q))
 if(s.length!==0)n.push(A.na(q,new A.rz(B.b.gY(s).b.toUpperCase(),"$"+B.d.cV(B.b.gY(s).c)+"\u2013$"+B.d.cV(B.b.gY(s).e),B.bx,q),q,q,17,q,69,q))
 if(s.length>1){s=s[1]
-n.push(A.na(q,new A.rz(s.b.toUpperCase(),"$"+B.d.cV(s.c)+"\u2013$"+B.d.cV(s.e),B.h4,q),q,q,q,17,137,q))}n.push(A.na(20,A.de(A.c([B.YO,B.SB,A.aJ("$"+B.d.cV(m.gY3())+"\u2013$"+B.d.cV(m.gX5()),q,q,q,B.Xr,q,q),B.bB,B.YB],o),B.aF,B.P,B.H),q,q,20,20,q,q))
+n.push(A.na(q,new A.rz(s.b.toUpperCase(),"$"+B.d.cV(s.c)+"\u2013$"+B.d.cV(s.e),B.h4,q),q,q,q,17,137,q))}n.push(A.na(20,A.de(A.c([B.YN,B.SB,A.aJ("$"+B.d.cV(m.gY3())+"\u2013$"+B.d.cV(m.gX5()),q,q,q,B.Xr,q,q),B.bB,B.Zw],o),B.aF,B.P,B.H),q,q,20,20,q,q))
 return A.dr(q,A.iV(B.cq,n,B.L,B.c1),B.bU,q,new A.bX(B.ac,q,q,p,q,q,B.T),q,350,q,q,q,q,q)}}
 A.wb.prototype={
 H(a){var s,r=this,q=null,p=A.cC(24),o=r.d,n=o?B.ad:B.C,m=A.aBP(o?B.ad:B.Ex,2),l=A.cC(9)
@@ -45605,7 +45605,7 @@ s.d=s.gjl().auj(this.b.a,this.c)},
 $S:0}
 A.arp.prototype={
 $1(a){var s=null,r=A.cC(13),q=t.p,p=this.a
-return A.axR(new A.cf(B.ol,A.de(A.c([A.i1(A.c([A.dr(s,A.po(A.aH5(a.Q),B.ad,s,s),B.r,s,new A.bX(B.hc,s,s,r,s,s,B.T),s,44,s,s,s,s,44),B.Aw,A.jy(A.de(A.c([A.aJ(a.b,s,s,s,B.iV,s,s),A.aJ("$"+B.d.cV(a.c)+"\u2013$"+B.d.cV(a.e)+" estimate",s,s,s,B.ml,s,s)],q),B.aF,B.P,B.H),1),new A.Xo(a.x,s)],q),B.a_,B.H,0),A.aiw(B.Ii,B.YE,new A.arl(p,a)),B.AB,A.i1(A.c([A.jy(A.aE8(B.YD,new A.arm(p,a)),1),B.e6,A.jy(A.tN(B.Zl,new A.arn(p,a),A.aCP(B.ad,s,B.Si,s,s,s)),1),B.e6,A.jy(A.fV(B.Zt,new A.aro(p,a),s),1)],q),B.a_,B.H,0)],q),B.aF,B.P,B.H),s),B.Gh)},
+return A.axR(new A.cf(B.ol,A.de(A.c([A.i1(A.c([A.dr(s,A.po(A.aH5(a.Q),B.ad,s,s),B.r,s,new A.bX(B.hc,s,s,r,s,s,B.T),s,44,s,s,s,s,44),B.Aw,A.jy(A.de(A.c([A.aJ(a.b,s,s,s,B.iV,s,s),A.aJ("$"+B.d.cV(a.c)+"\u2013$"+B.d.cV(a.e)+" estimate",s,s,s,B.ml,s,s)],q),B.aF,B.P,B.H),1),new A.Xo(a.x,s)],q),B.a_,B.H,0),A.aiw(B.Ii,B.YD,new A.arl(p,a)),B.AB,A.i1(A.c([A.jy(A.aE8(B.YC,new A.arm(p,a)),1),B.e6,A.jy(A.tN(B.Zk,new A.arn(p,a),A.aCP(B.ad,s,B.Si,s,s,s)),1),B.e6,A.jy(A.fV(B.Zs,new A.aro(p,a),s),1)],q),B.a_,B.H,0)],q),B.aF,B.P,B.H),s),B.Gh)},
 $S:505}
 A.arl.prototype={
 $0(){return this.a.ahP(this.b)},
@@ -46056,12 +46056,12 @@ s.O$=$.aj()
 s.J$=0
 this.aH()},
 H(a){var s=null
-return A.iR(A.kr(s,s,s,!0,!0,s,s,1,s,s,s,!1,s,!1,s,s,s,s,!0,s,s,s,s,s,B.YI,s,s,s,1,s,!0),new A.iG(new A.atU(this),s,this.a.c,s))}}
+return A.iR(A.kr(s,s,s,!0,!0,s,s,1,s,s,s,!1,s,!1,s,s,s,s,!0,s,s,s,s,s,B.YH,s,s,s,1,s,!0),new A.iG(new A.atU(this),s,this.a.c,s))}}
 A.atU.prototype={
-$2(a,b){var s=null,r=this.a,q=r.a.c,p=A.c([B.YM,B.YQ,A.aJ(q.y,s,s,s,s,s,s)],t.p),o=r.a
-if(o.e)p.push(B.Zc)
-else if(o.d!=null)p.push(B.Z_)
-p.push(B.Zg)
+$2(a,b){var s=null,r=this.a,q=r.a.c,p=A.c([B.YL,B.YP,A.aJ(q.y,s,s,s,s,s,s)],t.p),o=r.a
+if(o.e)p.push(B.Zb)
+else if(o.d!=null)p.push(B.YZ)
+p.push(B.Zf)
 r=r.a.f
 p.push(A.fV(A.aJ(q.f?"Back to app (paid access retained)":"Continue to free app",s,s,s,s,s,s),r,s))
 return A.dV(new A.d0(B.fR,A.a8k(p,B.hp),s),s,s)},
@@ -94989,14 +94989,14 @@ B.pi=s([B.Kq,B.Ju,B.Ll,B.Ln,B.Kh,B.Kn,B.KO,B.Kt,B.KG,B.Kl,B.Kr],t.zg)
 B.pj=s([B.eI,B.jX,B.o4],A.aq("z<jp>"))
 B.Kg=s([B.jy,B.jz],A.aq("z<xO>"))
 B.Un=new A.k(!0,B.ad,null,null,null,null,null,B.a5,null,1.1,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.YG=new A.aR("Free beta",null,B.Un,null,null,null,null,null,null)
+B.YF=new A.aR("Free beta",null,B.Un,null,null,null,null,null,null)
 B.bB=new A.bD(null,8,null,null)
 B.WJ=new A.k(!0,B.ac,null,null,null,null,30,B.a5,null,null,null,null,1.05,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.Z3=new A.aR("Your beta privacy",null,B.WJ,null,null,null,null,null,null)
+B.Z2=new A.aR("Your beta privacy",null,B.WJ,null,null,null,null,null,null)
 B.bt=new A.bD(null,10,null,null)
 B.aV=new A.B(1,0.38823529411764707,0.4392156862745098,0.403921568627451,B.e)
 B.B6=new A.k(!0,B.aV,null,null,null,null,null,null,null,null,null,null,1.45,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.Zw=new A.aR("Effective September 10, 2026. This free beta allows three no-registration analyses per browser/device, followed by optional manually approved access in that same browser. Existing invite codes remain supported. There are no subscriptions, scan packs, payments, or in-app purchases.",null,B.B6,null,null,null,null,null,null)
+B.Zv=new A.aR("Effective September 10, 2026. This free beta allows three no-registration analyses per browser/device, followed by optional manually approved access in that same browser. Existing invite codes remain supported. There are no subscriptions, scan packs, payments, or in-app purchases.",null,B.B6,null,null,null,null,null,null)
 B.iL=new A.bD(null,22,null,null)
 B.a1G=new A.jb("What this app is\u2014and is not","ClutterCash helps you identify visible items that may be worth selling and provides potential selling-value ranges and marketplace research links. It is not an appraisal, authentication service, marketplace, financial advisor, transaction tracker, listing tool, or guarantee of a sale. Verify model, condition, accessories, price, and marketplace rules before posting.",null)
 B.a1I=new A.jb("Photos and AI processing","When you choose a live scan or model-label photo and accept the upload notice, the app sends the image through ClutterCash\u2019s Cloudflare Worker to the OpenAI API. The Worker processes image bytes in memory and is designed not to write them to disk, and requests use store=false. OpenAI states API data is not used to train its models by default, but abuse-monitoring logs may retain customer content for up to 30 days. Crop or cover serials before uploading, keeping maker/model details visible. We omit dedicated serial fields and apply limited exact-text filtering, but cannot guarantee exclusion from results, local saves, or marketplace searches. Review and correct private details before saving or researching. Filtering a response does not remove details from the photo sent to OpenAI. Never upload faces, mail, addresses, keys, medication, documents, account information, or other sensitive/private content.",null)
@@ -95010,8 +95010,8 @@ B.UG=new A.k(!0,B.ad,null,null,null,null,16,B.a5,null,null,null,null,null,null,n
 B.YA=new A.aR("cluttercash.help@gmail.com",null,B.UG,null,null,null,null,null,null)
 B.aQ=new A.bD(null,12,null,null)
 B.ml=new A.k(!0,B.aV,null,null,null,null,12,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.Zs=new A.aR("Full notice: docs/BETA_PRIVACY_AND_TERMS.md",null,B.ml,null,null,null,null,null,null)
-B.Ki=s([B.YG,B.bB,B.Z3,B.bt,B.Zw,B.iL,B.a1G,B.a1I,B.a1J,B.a1E,B.a1C,B.a1D,B.a1H,B.a1F,B.YA,B.aQ,B.Zs],t.p)
+B.Zr=new A.aR("Full notice: docs/BETA_PRIVACY_AND_TERMS.md",null,B.ml,null,null,null,null,null,null)
+B.Ki=s([B.YF,B.bB,B.Z2,B.bt,B.Zv,B.iL,B.a1G,B.a1I,B.a1J,B.a1E,B.a1C,B.a1D,B.a1H,B.a1F,B.YA,B.aQ,B.Zr],t.p)
 B.Kk=s([18,15,10,12,15,18,15,12,12],t.n)
 B.aL=new A.eE(0,"icon")
 B.b4=new A.eE(1,"input")
@@ -96172,8 +96172,8 @@ B.a09=new A.RM(null)
 B.Fu=new A.tx(B.a09,null,B.x,null,null)
 B.zt=new A.qc(0,0,0,0,null,null,B.Fu,null)
 B.mi=new A.k(!0,B.N,null,null,null,null,null,B.bL,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.Zh=new A.aR("Fit one shelf or corner in frame",null,B.mi,null,null,null,null,null,null)
-B.PC=new A.qc(null,null,null,24,null,null,B.Zh,null)
+B.Zg=new A.aR("Fit one shelf or corner in frame",null,B.mi,null,null,null,null,null,null)
+B.PC=new A.qc(null,null,null,24,null,null,B.Zg,null)
 B.zu=new A.qd(1,"inAppWebView")
 B.zv=new A.qd(2,"inAppBrowserView")
 B.PD=new A.qd(3,"externalApplication")
@@ -96239,8 +96239,8 @@ B.fk=new A.hp(null,null)
 B.I4=new A.cl(B.oV,19,B.aV,null,null)
 B.Sx=new A.bD(9,null,null,null)
 B.UU=new A.k(!0,B.aV,null,null,null,null,11,null,null,null,null,null,1.45,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.YY=new A.aR("Your room may contain private details. Avoid faces, addresses, mail, medication, keys, documents, and other sensitive belongings. Live photos are sent through ClutterCash to the OpenAI API only after you accept the upload notice.",null,B.UU,null,null,null,null,null,null)
-B.GW=new A.mt(1,B.dH,B.YY,null)
+B.YX=new A.aR("Your room may contain private details. Avoid faces, addresses, mail, medication, keys, documents, and other sensitive belongings. Live photos are sent through ClutterCash to the OpenAI API only after you accept the upload notice.",null,B.UU,null,null,null,null,null,null)
+B.GW=new A.mt(1,B.dH,B.YX,null)
 B.KF=s([B.I4,B.Sx,B.GW],t.p)
 B.Qm=new A.lv(B.aC,B.P,B.H,B.aF,null,B.bR,null,0,B.KF,null)
 B.a1O=new A.wS(B.kX,"Potential value","Not hype",null)
@@ -96257,20 +96257,20 @@ B.Qn=new A.lv(B.aC,B.P,B.H,B.a_,null,B.bR,null,0,B.KY,null)
 B.HC=new A.bA(62054,"MaterialIcons",!1)
 B.I3=new A.cl(B.HC,null,B.ad,null,null)
 B.Wq=new A.k(!0,B.aV,null,null,null,null,null,B.bL,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.Z1=new A.aR("Possible value",null,B.Wq,null,null,null,null,null,null)
+B.Z0=new A.aR("Possible value",null,B.Wq,null,null,null,null,null,null)
 B.m9=new A.PA(null)
 B.UZ=new A.k(!0,B.ac,null,null,null,null,20,B.a5,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.YP=new A.aR("$355\u2013$525",null,B.UZ,null,null,null,null,null,null)
-B.H4=new A.L3(B.YP,null)
+B.YO=new A.aR("$355\u2013$525",null,B.UZ,null,null,null,null,null,null)
+B.H4=new A.L3(B.YO,null)
 B.H7=new A.iy(1,B.d_,B.H4,null)
-B.Lu=s([B.I3,B.fw,B.Z1,B.m9,B.H7],t.p)
+B.Lu=s([B.I3,B.fw,B.Z0,B.m9,B.H7],t.p)
 B.Qo=new A.lv(B.aC,B.P,B.H,B.a_,null,B.bR,null,0,B.Lu,null)
 B.HP=new A.bA(63624,"MaterialIcons",!1)
 B.I2=new A.cl(B.HP,16,B.aV,null,null)
 B.e6=new A.bD(7,null,null,null)
 B.B3=new A.k(!0,B.aV,null,null,null,null,null,B.hB,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.YN=new A.aR("No account or code needed for 3 free analyses",null,B.B3,B.au,null,null,null,null,null)
-B.H6=new A.iy(1,B.d_,B.YN,null)
+B.YM=new A.aR("No account or code needed for 3 free analyses",null,B.B3,B.au,null,null,null,null,null)
+B.H6=new A.iy(1,B.d_,B.YM,null)
 B.Lv=s([B.I2,B.e6,B.H6],t.p)
 B.Qp=new A.lv(B.aC,B.dL,B.H,B.a_,null,B.bR,null,0,B.Lv,null)
 B.ic=new A.aw(13,13)
@@ -96282,9 +96282,9 @@ B.Sy=new A.bD(42,42,B.I_,null)
 B.FB=new A.yH(B.Cl,B.cw,B.Sy,null)
 B.Sv=new A.bD(11,null,null,null)
 B.Um=new A.k(!0,B.ac,null,null,null,null,21,B.a5,null,-0.6,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.Zq=new A.aR("ClutterCash",null,B.Um,null,null,null,null,null,null)
+B.Zp=new A.aR("ClutterCash",null,B.Um,null,null,null,null,null,null)
 B.a1m=new A.rt("BETA",B.ad,null)
-B.Li=s([B.FB,B.Sv,B.Zq,B.m9,B.a1m],t.p)
+B.Li=s([B.FB,B.Sv,B.Zp,B.m9,B.a1m],t.p)
 B.Qq=new A.lv(B.aC,B.P,B.H,B.a_,null,B.bR,null,0,B.Li,null)
 B.Qr=new A.BX(1333)
 B.lG=new A.BX(2222)
@@ -96962,64 +96962,64 @@ B.X0=new A.k(!0,B.M,null,".AppleSystemUIFont",null,null,null,null,null,null,null
 B.Xm=new A.k(!0,B.l,null,".AppleSystemUIFont",null,null,null,null,null,null,null,null,null,null,null,null,null,B.f,null,null,null,"blackRedwoodCity labelMedium",null,null,null,null)
 B.U2=new A.k(!0,B.l,null,".AppleSystemUIFont",null,null,null,null,null,null,null,null,null,null,null,null,null,B.f,null,null,null,"blackRedwoodCity labelSmall",null,null,null,null)
 B.Yx=new A.dz(B.W5,B.UW,B.W6,B.WC,B.Ux,B.UH,B.Vg,B.Wx,B.Vt,B.X3,B.TW,B.Ue,B.X0,B.Xm,B.U2)
+B.YB=new A.aR("Active listings",null,null,null,null,null,null,null,null)
+B.YC=new A.aR("Listed",null,null,null,null,null,null,null,null)
+B.YD=new A.aR("Research / correct item",null,null,null,null,null,null,null,null)
+B.YE=new A.aR("Enter your email and request access. The owner receives a private alert and reviews every request. Approval activates continued access in this browser\u2014no code or email delivery needed.",null,B.fB,null,null,null,null,null,null)
+B.YG=new A.aR("Delete all",null,null,null,null,null,null,null,null)
+B.YH=new A.aR("Optional subscription",null,null,null,null,null,null,null,null)
+B.YI=new A.aR("Garage reset",null,B.mk,null,null,null,null,null,null)
+B.YJ=new A.aR("Request beta access",null,null,null,null,null,null,null,null)
+B.YK=new A.aR("Only upload a staged, non-sensitive photo. Do not include faces, mail, addresses, keys, medication, documents, or private belongings. Google may review free-tier AI submissions and use them to improve its products.",null,null,null,null,null,null,null,null)
+B.YL=new A.aR("TEST MODE \u2014 no live billing",null,B.iU,null,null,null,null,null,null)
+B.YN=new A.aR("Potential resale value",null,B.mi,null,null,null,null,null,null)
+B.mm=new A.aR("Privacy & beta terms",null,null,null,null,null,null,null,null)
+B.YP=new A.aR("Optional USD 1.99/month for 10 scans per billing month. Your three free scans need no signup or card. Saved projects, corrections and research remain free.",null,null,null,null,null,null,null,null)
+B.YQ=new A.aR("Need more scans? Request access",null,null,null,null,null,null,null,null)
+B.X6=new A.k(!0,B.ac,null,null,null,null,null,B.bL,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
+B.YR=new A.aR("Wide estimate? Take a close photo of the brand/model label or product barcode for a more specific identity and better price research.",null,B.X6,null,null,null,null,null,null)
+B.YS=new A.aR("Choose another photo",null,null,null,null,null,null,null,null)
+B.YT=new A.aR("Use details you verified. These are potential selling-value estimates, not completed sale prices.",null,null,null,null,null,null,null,null)
+B.B8=new A.k(!0,null,null,null,null,null,null,B.d0,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
+B.YU=new A.aR("Scan a space",null,B.B8,null,null,null,null,null,null)
+B.YV=new A.aR("Delete every saved ClutterCash project from this device? This cannot be undone.",null,null,null,null,null,null,null,null)
+B.YW=new A.aR("I understand",null,null,null,null,null,null,null,null)
+B.YY=new A.aR("For another photo, move closer to one or a few items, use good lighting, and keep objects clearly visible. Another analysis may use another available attempt.",null,null,null,null,null,null,null,null)
+B.YZ=new A.aR("Confirm only if you requested this email in this browser. No scan, upload or checkout starts here.",null,null,null,null,null,null,null,null)
+B.Z_=new A.aR("Analysis complete",null,null,null,null,null,null,null,null)
+B.fC=new A.aR("Cancel",null,null,null,null,null,null,null,null)
+B.Z1=new A.aR("Choose a photo",null,null,null,null,null,null,null,null)
+B.Z3=new A.aR("Delete project?",null,null,null,null,null,null,null,null)
+B.Z4=new A.aR("Enter beta invite code",null,null,null,null,null,null,null,null)
+B.Z5=new A.aR("Your code allows a small number of live analyses. It is saved only on this device and is not your OpenAI or account password.",null,B.fB,null,null,null,null,null,null)
+B.Z6=new A.aR("Back to home",null,null,null,null,null,null,null,null)
+B.Z7=new A.aR("Start a new request",null,null,null,null,null,null,null,null)
+B.Z8=new A.aR("I need to correct this item",null,null,null,null,null,null,null,null)
+B.WX=new A.k(!0,B.aV,null,null,null,null,12,B.bL,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
+B.Z9=new A.aR("Demo values do not describe your uploaded photo.",null,B.WX,B.au,null,null,null,null,null)
+B.Za=new A.aR("Free AI beta privacy",null,null,null,null,null,null,null,null)
+B.Zb=new A.aR("Returning from billing does not confirm payment or cancellation. Refresh server status.",null,null,null,null,null,null,null,null)
+B.Zc=new A.aR("Save beta code",null,null,null,null,null,null,null,null)
+B.Zd=new A.aR("Delete all saved projects?",null,null,null,null,null,null,null,null)
+B.Ze=new A.aR("Your projects",null,B.mk,null,null,null,null,null,null)
+B.Zf=new A.aR("Test billing is not enabled. Continue to the free app.",null,null,null,null,null,null,null,null)
+B.Zh=new A.aR("Save correction",null,null,null,null,null,null,null,null)
+B.Zi=new A.aR("Open saved projects",null,null,null,null,null,null,null,null)
+B.Zj=new A.aR("Delete project",null,null,null,null,null,null,null,null)
+B.Zk=new A.aR("Sold",null,null,null,null,null,null,null,null)
+B.B9=new A.aR("Open camera",null,null,null,null,null,null,null,null)
+B.Zl=new A.aR("Try the demo room",null,B.B8,null,null,null,null,null,null)
+B.Zm=new A.aR("Photograph the model label",null,null,null,null,null,null,null,null)
+B.Zn=new A.aR("See a clearly labeled demo result",null,null,null,null,null,null,null,null)
+B.Zo=new A.aR("DEMO \xb7 Sample items and estimates",null,null,null,null,null,null,null,null)
+B.Zq=new A.aR("The analysis completed but did not identify any candidate items. This does not mean the scene has no value.",null,null,null,null,null,null,null,null)
+B.Zs=new A.aR("Donate",null,null,null,null,null,null,null,null)
+B.Zt=new A.aR("Scan my space",null,null,null,null,null,null,null,null)
+B.UX=new A.k(!0,B.aV,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
+B.Zu=new A.aR("Your email is used only to review this beta request. Approval is delivered privately in this browser. Need help? cluttercash.help@gmail.com",null,B.UX,B.au,null,null,null,null,null)
 B.EE=new A.B(0.5411764705882353,1,1,1,B.e)
 B.Uk=new A.k(!0,B.EE,null,null,null,null,12,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.YB=new A.aR("Price ranges use filtered active eBay listings when reliable matches are available. Active prices are asking prices\u2014not completed sales or guaranteed proceeds.",null,B.Uk,null,null,null,null,null,null)
-B.YC=new A.aR("Active listings",null,null,null,null,null,null,null,null)
-B.YD=new A.aR("Listed",null,null,null,null,null,null,null,null)
-B.YE=new A.aR("Research / correct item",null,null,null,null,null,null,null,null)
-B.YF=new A.aR("Enter your email and request access. The owner receives a private alert and reviews every request. Approval activates continued access in this browser\u2014no code or email delivery needed.",null,B.fB,null,null,null,null,null,null)
-B.YH=new A.aR("Delete all",null,null,null,null,null,null,null,null)
-B.YI=new A.aR("Optional subscription",null,null,null,null,null,null,null,null)
-B.YJ=new A.aR("Garage reset",null,B.mk,null,null,null,null,null,null)
-B.YK=new A.aR("Request beta access",null,null,null,null,null,null,null,null)
-B.YL=new A.aR("Only upload a staged, non-sensitive photo. Do not include faces, mail, addresses, keys, medication, documents, or private belongings. Google may review free-tier AI submissions and use them to improve its products.",null,null,null,null,null,null,null,null)
-B.YM=new A.aR("TEST MODE \u2014 no live billing",null,B.iU,null,null,null,null,null,null)
-B.YO=new A.aR("Potential resale value",null,B.mi,null,null,null,null,null,null)
-B.mm=new A.aR("Privacy & beta terms",null,null,null,null,null,null,null,null)
-B.YQ=new A.aR("Optional USD 1.99/month for 10 scans per billing month. Your three free scans need no signup or card. Saved projects, corrections and research remain free.",null,null,null,null,null,null,null,null)
-B.YR=new A.aR("Need more scans? Request access",null,null,null,null,null,null,null,null)
-B.X6=new A.k(!0,B.ac,null,null,null,null,null,B.bL,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.YS=new A.aR("Wide estimate? Take a close photo of the brand/model label or product barcode for a more specific identity and better price research.",null,B.X6,null,null,null,null,null,null)
-B.YT=new A.aR("Choose another photo",null,null,null,null,null,null,null,null)
-B.YU=new A.aR("Use details you verified. These are potential selling-value estimates, not completed sale prices.",null,null,null,null,null,null,null,null)
-B.B8=new A.k(!0,null,null,null,null,null,null,B.d0,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.YV=new A.aR("Scan a space",null,B.B8,null,null,null,null,null,null)
-B.YW=new A.aR("Delete every saved ClutterCash project from this device? This cannot be undone.",null,null,null,null,null,null,null,null)
-B.YX=new A.aR("I understand",null,null,null,null,null,null,null,null)
-B.YZ=new A.aR("For another photo, move closer to one or a few items, use good lighting, and keep objects clearly visible. Another analysis may use another available attempt.",null,null,null,null,null,null,null,null)
-B.Z_=new A.aR("Confirm only if you requested this email in this browser. No scan, upload or checkout starts here.",null,null,null,null,null,null,null,null)
-B.Z0=new A.aR("Analysis complete",null,null,null,null,null,null,null,null)
-B.fC=new A.aR("Cancel",null,null,null,null,null,null,null,null)
-B.Z2=new A.aR("Choose a photo",null,null,null,null,null,null,null,null)
-B.Z4=new A.aR("Delete project?",null,null,null,null,null,null,null,null)
-B.Z5=new A.aR("Enter beta invite code",null,null,null,null,null,null,null,null)
-B.Z6=new A.aR("Your code allows a small number of live analyses. It is saved only on this device and is not your OpenAI or account password.",null,B.fB,null,null,null,null,null,null)
-B.Z7=new A.aR("Back to home",null,null,null,null,null,null,null,null)
-B.Z8=new A.aR("Start a new request",null,null,null,null,null,null,null,null)
-B.Z9=new A.aR("I need to correct this item",null,null,null,null,null,null,null,null)
-B.WX=new A.k(!0,B.aV,null,null,null,null,12,B.bL,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.Za=new A.aR("Demo values do not describe your uploaded photo.",null,B.WX,B.au,null,null,null,null,null)
-B.Zb=new A.aR("Free AI beta privacy",null,null,null,null,null,null,null,null)
-B.Zc=new A.aR("Returning from billing does not confirm payment or cancellation. Refresh server status.",null,null,null,null,null,null,null,null)
-B.Zd=new A.aR("Save beta code",null,null,null,null,null,null,null,null)
-B.Ze=new A.aR("Delete all saved projects?",null,null,null,null,null,null,null,null)
-B.Zf=new A.aR("Your projects",null,B.mk,null,null,null,null,null,null)
-B.Zg=new A.aR("Test billing is not enabled. Continue to the free app.",null,null,null,null,null,null,null,null)
-B.Zi=new A.aR("Save correction",null,null,null,null,null,null,null,null)
-B.Zj=new A.aR("Open saved projects",null,null,null,null,null,null,null,null)
-B.Zk=new A.aR("Delete project",null,null,null,null,null,null,null,null)
-B.Zl=new A.aR("Sold",null,null,null,null,null,null,null,null)
-B.B9=new A.aR("Open camera",null,null,null,null,null,null,null,null)
-B.Zm=new A.aR("Try the demo room",null,B.B8,null,null,null,null,null,null)
-B.Zn=new A.aR("Photograph the model label",null,null,null,null,null,null,null,null)
-B.Zo=new A.aR("See a clearly labeled demo result",null,null,null,null,null,null,null,null)
-B.Zp=new A.aR("DEMO \xb7 Sample items and estimates",null,null,null,null,null,null,null,null)
-B.Zr=new A.aR("The analysis completed but did not identify any candidate items. This does not mean the scene has no value.",null,null,null,null,null,null,null,null)
-B.Zt=new A.aR("Donate",null,null,null,null,null,null,null,null)
-B.Zu=new A.aR("Scan my space",null,null,null,null,null,null,null,null)
-B.UX=new A.k(!0,B.aV,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.Zv=new A.aR("Your email is used only to review this beta request. Approval is delivered privately in this browser. Need help? cluttercash.help@gmail.com",null,B.UX,B.au,null,null,null,null,null)
+B.Zw=new A.aR("Price ranges prioritize filtered used eBay listings. New listings are considered only when no used listings are available. Active prices are asking prices\u2014not completed sales or guaranteed proceeds.",null,B.Uk,null,null,null,null,null,null)
 B.a2j=new A.aje(0,"system")
 B.Ok=new A.h(0.056,0.024)
 B.Oz=new A.h(0.108,0.3085)
