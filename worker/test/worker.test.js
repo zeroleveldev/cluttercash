@@ -185,6 +185,9 @@ for (const route of ['scans', 'items/identify']) test(`OPENAI-01 ${route} uses b
     assert.match(instructions, /furniture.*books.*baskets.*electronics.*d[eé]cor/i);
     assert.match(instructions, /older non-smart TV/i);
     assert.match(instructions, /quick local sale/i);
+    assert.match(instructions, /do not default.*donate/i);
+    assert.match(instructions, /sell.*\$10/i);
+    assert.match(instructions, /bundle.*\$15/i);
     assert.match(instructions, /follow-up.*optional/i);
   }
   assert.equal(payload.contents,undefined);
@@ -254,6 +257,48 @@ test('SCAN-ROUTE-01 non-sale routes contribute zero potential selling value', as
     {route:'donate',marketplace:'donate',values:[0,0,0]},
     {route:'recycle',marketplace:'localPickup',values:[0,0,0]},
   ]);
+});
+
+test('SCAN-TV-01 generic intact flat-screen gets a quick-sale range and focused research query', async () => {
+  const television = {
+    id:'tv',name:'Flat screen TV',category:'Electronics',lowValue:0,typicalValue:0,highValue:0,
+    confidence:'low',effort:'low',route:'donate',reason:'Model and smart features are not visible.',
+    searchQuery:'flat screen TV wall-mounted or on mantel',marketplace:'donate',marketplaceReason:'Identity is uncertain.',
+    box:{left:0,top:0,width:1,height:1},
+  };
+  const response=await createHandler({fetcher:async()=>providerResponse({sceneSummary:'Living room',items:[television]})})(imageRequest(),env);
+  assert.equal(response.status,200);
+  const result=(await response.json()).items[0];
+  assert.deepEqual([result.lowValue,result.typicalValue,result.highValue],[5,25,50]);
+  assert.equal(result.route,'sell');
+  assert.equal(result.marketplace,'localPickup');
+  assert.equal(result.searchQuery,'used flat screen television -mount -bracket -stand -remote -parts');
+  assert.match(result.reason,/quick local/i);
+  assert.match(result.marketplaceReason,/local pickup/i);
+});
+
+test('SCAN-TV-02 visibly broken flat-screen remains a zero-value non-sale item', async () => {
+  const television = {
+    id:'tv',name:'Flat screen TV with cracked screen',category:'Electronics',lowValue:0,typicalValue:0,highValue:0,
+    confidence:'high',effort:'low',route:'recycle',reason:'The screen is visibly cracked.',
+    searchQuery:'cracked flat screen TV on wall',marketplace:'donate',marketplaceReason:'Recycle damaged electronics.',
+    box:{left:0,top:0,width:1,height:1},
+  };
+  const response=await createHandler({fetcher:async()=>providerResponse({sceneSummary:'Living room',items:[television]})})(imageRequest(),env);
+  const result=(await response.json()).items[0];
+  assert.equal(result.route,'recycle');
+  assert.deepEqual([result.lowValue,result.typicalValue,result.highValue],[0,0,0]);
+});
+
+test('SCAN-QUERY-01 removes room placement from marketplace searches', async () => {
+  const basket = {
+    id:'basket',name:'Wicker basket on bookshelf',category:'Home décor',lowValue:5,typicalValue:10,highValue:15,
+    confidence:'medium',effort:'low',route:'sell',reason:'Reusable basket.',
+    searchQuery:'wicker basket on bookshelf',marketplace:'facebookMarketplace',marketplaceReason:'Local buyer.',
+    box:{left:0,top:0,width:1,height:1},
+  };
+  const response=await createHandler({fetcher:async()=>providerResponse({sceneSummary:'Living room',items:[basket]})})(imageRequest(),env);
+  assert.equal((await response.json()).items[0].searchQuery,'wicker basket');
 });
 
 for(const config of [{OPENAI_MODEL:undefined},{OPENAI_MAX_REQUEST_COST_MICRO_USD:'invalid'},{OPENAI_MAX_REQUEST_COST_MICRO_USD:'131072.5'},{OPENAI_MAX_REQUEST_COST_MICRO_USD:'9007199254740992'},{OPENAI_MODEL:'other-model'},{OPENAI_MAX_REQUEST_COST_MICRO_USD:'10000'},{OPENAI_MAX_REQUEST_COST_MICRO_USD:undefined},{OPENAI_MAX_REQUEST_COST_MICRO_USD:'71199'}]) test(`CC-01 unsafe cost configuration ${JSON.stringify(config)}`,async()=>{

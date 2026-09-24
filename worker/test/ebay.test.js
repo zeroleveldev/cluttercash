@@ -168,7 +168,11 @@ test('EBAY-02c generic unidentified television is not enriched', async () => {
   const result=await response.json();
   assert.equal(response.status,200);
   assert.equal(marketplaceCalls,0);
-  assert.deepEqual(result.items[0],{...television,priceSource:'ai_estimate',ebayComparableCount:0});
+  assert.equal(result.items[0].priceSource,'ai_estimate');
+  assert.equal(result.items[0].ebayComparableCount,0);
+  assert.deepEqual([result.items[0].lowValue,result.items[0].typicalValue,result.items[0].highValue],[5,25,50]);
+  assert.equal(result.items[0].marketplace,'localPickup');
+  assert.equal(result.items[0].searchQuery,'used flat screen television -mount -bracket -stand -remote -parts');
 });
 
 test('EBAY-02d exact-model television remains eligible', async () => {
